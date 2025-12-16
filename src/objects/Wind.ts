@@ -62,9 +62,12 @@ export class Wind {
     }
 
     // Update particles - Drift with wind
-    // We want them to move across the screen in the direction of the wind.
+    // Wind angle represents where wind is coming FROM (0 = from North).
+    // We want particles to drift in the direction the wind BLOWS (opposite direction).
+    // So if wind comes from North (0°), particles should drift South (180°).
+    // Adding 180° converts "wind from" to "wind to", then -90 for Phaser's coordinate system.
     const speedScale = 50; // Constant drift speed (pixels per sec approx)
-    const rad = Phaser.Math.DegToRad(this.angle - 90);
+    const rad = Phaser.Math.DegToRad(this.angle + 180 - 90);
     
     // In Phaser 3, setting particle speedX/Y directly on emitter might not affect *existing* particles 
     // depending on version, but usually does for *new* ones. 
