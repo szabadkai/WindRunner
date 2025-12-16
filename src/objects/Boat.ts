@@ -7,6 +7,7 @@ export class Boat extends Phaser.GameObjects.Container {
   public speed: number = 0;
   public heading: number = 0; // Degrees, 0=North
   public sailTrim: number = 50; // 0-100%
+  public heelAngle: number = 0; // Degrees, 0-45
 
   private wake!: Phaser.GameObjects.Particles.ParticleEmitter;
   
@@ -69,8 +70,8 @@ export class Boat extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  update(wind: Wind, cursors: Phaser.Types.Input.Keyboard.CursorKeys) {
-    // Handle Input
+  update(wind: Wind, cursors: Phaser.Types.Input.Keyboard.CursorKeys, touchInput?: { steerInput: number, trimDelta: number }) {
+    // Handle Keyboard Input
     if (cursors.left.isDown) {
       this.heading -= PHYSICS_CONFIG.RUDDER_TURN_RATE;
     } else if (cursors.right.isDown) {
@@ -83,13 +84,35 @@ export class Boat extends Phaser.GameObjects.Container {
       this.sailTrim = Math.max(0, this.sailTrim - PHYSICS_CONFIG.SAIL_ADJUST_RATE); 
     }
 
+    // Handle Touch Input (additive with keyboard)
+    if (touchInput) {
+      // Steer Input is Position-Based (Joystick): acts as Rudder Angle
+      this.heading += touchInput.steerInput * PHYSICS_CONFIG.RUDDER_TURN_RATE;
+      
+      // Trim Input is Delta-Based (Motion): acts as direct adjustment
+      // Unlike keyboard which is rate-based (hold key = change), touch is motion-based (move finger = change)
+      // Accumulate the delta
+      this.sailTrim = Math.max(0, Math.min(100, this.sailTrim + touchInput.trimDelta));
+    }
+
     // Physics
-    const targetSpeed = SailPhysics.calculateBoatSpeed(
+    const baseSpeed = SailPhysics.calculateBoatSpeed(
       this.heading,
       wind.angle,
       wind.speed,
       this.sailTrim
     );
+    
+    // Calculate wind force for heel (wind speed * angle efficiency approximation)
+    let relativeAngle = Math.abs(this.heading - wind.angle) % 360;
+    if (relativeAngle > 180) relativeAngle = 360 - relativeAngle;
+    const angleEfficiency = relativeAngle >= 45 ? Math.min(1, (relativeAngle - 45) / 45) : 0;
+    const windForce = wind.speed * angleEfficiency;
+    
+    // Calculate heel angle and speed multiplier
+    this.heelAngle = SailPhysics.calculateHeelAngle(windForce, this.sailTrim, this.speed);
+    const heelMultiplier = SailPhysics.getHeelSpeedMultiplier(this.heelAngle);
+    const targetSpeed = baseSpeed * heelMultiplier;
     
     // Inertia / Accel
     if (this.speed < targetSpeed) {
@@ -172,6 +195,9 @@ export class Boat extends Phaser.GameObjects.Container {
     // In reality, wind pushes sail. Here we just visualize trim?
     // Let's just angle it based on trim for now to show it moving.
 
+    // Update hull graphics for heel effect
+    this.drawHull(this.heelAngle);
+
     // Wake Emitter
     if (this.speed > 0.5) {
         if (!this.wake.emitting) this.wake.start();
@@ -200,29 +226,35 @@ export class Boat extends Phaser.GameObjects.Container {
     // this.sail.rotation = Phaser.Math.DegToRad(this.sailTrim * 0.9); 
   }
 
-  private drawHull() {
+  private drawHull(heelAmount: number = 0) {
     this.hullGraphics.clear();
-    this.hullGraphics.lineStyle(2, 0xffffff);
-    this.hullGraphics.fillStyle(0x333333);
     
-    // Draw Hull Shape using Path
-    // Bow (0, -30)
-    // Port Curve: to (-10, 30) via (-15, 0)
-    // Stern: to (10, 30)
-    // Starboard Curve: to (0, -30) via (15, 0)
+    // Calculate visual heel: scale hull width based on heel angle
+    // At 0° heel: full width (1.0), at 45° heel: half width (0.5)
+    const heelScale = 1 - (heelAmount / 90);
+    
+    // Shade windward side darker when heeled
+    const heelTint = heelAmount > 5 ? 0x222222 : 0x333333;
+    
+    this.hullGraphics.lineStyle(2, 0xffffff);
+    this.hullGraphics.fillStyle(heelTint);
+    
+    // Draw Hull Shape using Path (scaled horizontally for heel effect)
+    const hullWidth = 15 * heelScale;
+    const sternWidth = 10 * heelScale;
     
     const path = new Phaser.Curves.Path(0, -30);
-    path.quadraticBezierTo(-10, 30, -15, 0);
-    path.lineTo(10, 30);
-    path.quadraticBezierTo(0, -30, 15, 0);
+    path.quadraticBezierTo(-sternWidth, 30, -hullWidth, 0);
+    path.lineTo(sternWidth, 30);
+    path.quadraticBezierTo(0, -30, hullWidth, 0);
     path.closePath();
     
     path.draw(this.hullGraphics);
     this.hullGraphics.fillPoints(path.getPoints());
 
-    // Deck Detail
+    // Deck Detail (also scaled)
     this.hullGraphics.fillStyle(0x555555);
-    this.hullGraphics.fillCircle(0, 10, 5); // Cockpit/Mast base area
+    this.hullGraphics.fillCircle(0, 10, 5 * heelScale); // Cockpit/Mast base area
     this.hullGraphics.fillStyle(0xaaaaaa);
     this.hullGraphics.fillCircle(0, -15, 2); // Mast step
   }

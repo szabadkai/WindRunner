@@ -121,7 +121,11 @@ export class RaceScene extends Phaser.Scene {
     this.wind.update(time, delta);
     
     if (this.isRaceActive && this.cursors) {
-        this.boat.update(this.wind, this.cursors);
+        // Get touch input from UIScene if available
+        const uiScene = this.scene.get('UIScene') as { touchInput?: { steerInput: number, trimDelta: number } };
+        const touchInput = uiScene?.touchInput;
+        
+        this.boat.update(this.wind, this.cursors, touchInput);
         
         // Update Course Logic
         this.course.update(this.boat.x, this.boat.y);
@@ -150,6 +154,7 @@ export class RaceScene extends Phaser.Scene {
         boatX: this.boat.x,
         boatY: this.boat.y,
         sailTrim: this.boat.sailTrim,
+        heelAngle: this.boat.heelAngle,
         time: elapsed,
         waypointIndex: this.course.getCurrentIndex(),
         totalWaypoints: this.course.getTotalWaypoints()

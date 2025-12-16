@@ -12,7 +12,7 @@ export class MenuScene extends Phaser.Scene {
     const { width } = this.cameras.main;
 
     // Title
-    this.add.text(width / 2, 150, 'WINDRUNNER', {
+    this.add.text(width / 2, 100, 'WINDRUNNER', {
       fontSize: '64px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -25,12 +25,12 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Course Selection
-    this.add.text(width / 2, 250, 'SELECT COURSE', {
+    this.add.text(width / 2, 230, 'SELECT COURSE', {
       fontSize: '32px',
       color: '#ffffff'
     }).setOrigin(0.5);
 
-    let yPos = 320;
+    let yPos = 290;
     COURSES.forEach((course, index) => {
         const btn = this.add.text(width / 2, yPos, course.name.toUpperCase(), {
             fontSize: '28px',

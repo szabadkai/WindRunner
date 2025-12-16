@@ -1,4 +1,4 @@
-import { PHYSICS_CONFIG } from '../config';
+import { PHYSICS_CONFIG, HEEL_CONFIG } from '../config';
 
 export enum PointOfSail {
   NO_GO,
@@ -83,4 +83,60 @@ export class SailPhysics {
     if (relativeAngle < 160) return PointOfSail.BROAD_REACH;
     return PointOfSail.RUNNING;
   }
+
+  /**
+   * Calculates heel angle based on wind force, sail trim, and boat speed.
+   * @param windForce - Effective wind force on the sail
+   * @param sailTrim - Sail trim percentage (0-100), higher = more exposed sail
+   * @param boatSpeed - Current boat speed in knots
+   * @returns Heel angle in degrees (0 to MAX_HEEL)
+   */
+  static calculateHeelAngle(
+    windForce: number,
+    sailTrim: number,
+    boatSpeed: number
+  ): number {
+    // Sail exposure: fuller sail (higher trim) catches more wind
+    const sailExposure = sailTrim / 100;
+    
+    // Speed reduces heel via apparent wind angle effect (max 30% reduction)
+    const speedReduction = 1 - (boatSpeed / PHYSICS_CONFIG.MAX_BOAT_SPEED * 0.3);
+    
+    // Calculate raw heel
+    const rawHeel = windForce * sailExposure * speedReduction * HEEL_CONFIG.SENSITIVITY;
+    
+    // Clamp to physical limits
+    return Math.max(0, Math.min(rawHeel, HEEL_CONFIG.MAX_HEEL));
+  }
+
+  /**
+   * Returns speed multiplier based on heel angle.
+   * Optimal heel (15-25°) = 1.0x, under-heel (<10°) = 0.7x, over-heel (>30°) = 0.6-0.8x
+   * @param heelAngle - Current heel angle in degrees
+   * @returns Speed efficiency multiplier (0.6-1.0)
+   */
+  static getHeelSpeedMultiplier(heelAngle: number): number {
+    const { OPTIMAL_MIN, OPTIMAL_MAX, MAX_HEEL } = HEEL_CONFIG;
+    
+    if (heelAngle <= 10) {
+      // Under-heeled: flat 0.7x
+      return 0.7;
+    } else if (heelAngle <= OPTIMAL_MIN) {
+      // Transition zone: 10-15° linear from 0.7 to 1.0
+      const t = (heelAngle - 10) / (OPTIMAL_MIN - 10);
+      return 0.7 + 0.3 * t;
+    } else if (heelAngle <= OPTIMAL_MAX) {
+      // Optimal zone: 15-25° = 1.0x
+      return 1.0;
+    } else if (heelAngle <= 30) {
+      // Starting to over-heel: 25-30° linear from 1.0 to 0.8
+      const t = (heelAngle - OPTIMAL_MAX) / (30 - OPTIMAL_MAX);
+      return 1.0 - 0.2 * t;
+    } else {
+      // Over-heeled: 30-45° linear from 0.8 to 0.6
+      const t = Math.min(1, (heelAngle - 30) / (MAX_HEEL - 30));
+      return 0.8 - 0.2 * t;
+    }
+  }
 }
+

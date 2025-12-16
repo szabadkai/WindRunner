@@ -25,7 +25,8 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false
     }
   },
-  scene: [BootScene, MenuScene, RaceScene, UIScene, PauseScene] // Order matters for update loop? Not really for scenes.
+  scene: [BootScene, MenuScene, RaceScene, UIScene, PauseScene]
 };
 
 new Phaser.Game(config);
+
