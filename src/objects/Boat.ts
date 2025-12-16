@@ -12,10 +12,31 @@ export class Boat extends Phaser.GameObjects.Container {
   
   private hullGraphics!: Phaser.GameObjects.Graphics;
   private sailGraphics!: Phaser.GameObjects.Graphics;
+  
+  private swirls!: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
     
+    // Swirl Emitter (Turbulence)
+    if (!scene.textures.exists('swirl')) {
+        const gfx = scene.make.graphics({x:0, y:0});
+        gfx.lineStyle(2, 0xffffff, 1);
+        gfx.beginPath();
+        gfx.arc(10, 10, 8, 0, 1.5 * Math.PI, false);
+        gfx.strokePath();
+        gfx.generateTexture('swirl', 20, 20);
+    }
+    
+    this.swirls = scene.add.particles(0, 0, 'swirl', {
+        lifespan: 1000,
+        scale: { start: 0.5, end: 1 },
+        alpha: { start: 0.5, end: 0 },
+        rotate: { start: 0, end: 360 },
+        speed: { min: 20, max: 50 },
+        emitting: false
+    });
+
     // Create wake trail texture
     if (!scene.textures.exists('wake_particle')) {
         const graphics = scene.make.graphics({ x: 0, y: 0 });
@@ -161,8 +182,19 @@ export class Boat extends Phaser.GameObjects.Container {
         // Particle speed away from boat? Or just static trail?
         // Static trail is easier, just leaving them behind.
         this.wake.frequency = Math.max(20, 100 - (this.speed * 10)); // faster speed = more particles
+        
+        // Swirls at high speed or turn?
+        if (this.speed > 5) {
+            if (!this.swirls.emitting) this.swirls.start();
+            this.swirls.setPosition(wakeX, wakeY);
+            // Randomly offset swirl
+            // this.swirls.emitParticleAt(wakeX, wakeY);
+        } else {
+            this.swirls.stop();
+        }
     } else {
         if (this.wake.emitting) this.wake.stop();
+        if (this.swirls.emitting) this.swirls.stop();
     }
     // We should account for wind side eventually.
     // this.sail.rotation = Phaser.Math.DegToRad(this.sailTrim * 0.9); 

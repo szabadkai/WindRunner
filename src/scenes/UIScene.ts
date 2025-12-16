@@ -141,7 +141,21 @@ export class UIScene extends Phaser.Scene {
       });
       
       if (value === '') this.countdownText.setVisible(false);
-      else this.countdownText.setVisible(true).setAlpha(1).setScale(1);
+    else {
+        this.countdownText.setVisible(true).setAlpha(1).setScale(1);
+        if (value === 'OCS!') {
+            this.countdownText.setColor('#ff0000');
+            this.tweens.add({
+                targets: this.countdownText,
+                scale: { from: 1, to: 1.2 },
+                yoyo: true,
+                repeat: 3,
+                duration: 200
+            });
+        } else {
+             this.countdownText.setColor('#ffffff');
+        }
+    }
   }
 
   private drawArrow(graphics: Phaser.GameObjects.Graphics, color: number) {

@@ -6,7 +6,9 @@ export const COURSES = [
       { x: 900, y: 200 },
       { x: 900, y: 600 }
     ],
-    startPos: { x: 100, y: 500 }
+
+    startLine: { x1: 200, y1: 650, x2: 400, y2: 650 },
+    startPos: { x: 300, y: 680, heading: 0 }
   },
   {
     name: 'Windward-Leeward (Intermediate)',
@@ -16,7 +18,8 @@ export const COURSES = [
       { x: 640, y: 100 },
       { x: 640, y: 600 }
     ],
-    startPos: { x: 640, y: 650 }
+    startLine: { x1: 500, y1: 650, x2: 780, y2: 650 },
+    startPos: { x: 640, y: 680, heading: 0 }
   },
   {
     name: 'Olympic (Advanced)',
@@ -27,7 +30,8 @@ export const COURSES = [
       { x: 640, y: 150 },
       { x: 640, y: 600 }   // Finish
     ],
-    startPos: { x: 640, y: 650 }
+    startLine: { x1: 500, y1: 650, x2: 780, y2: 650 },
+    startPos: { x: 640, y: 680, heading: 0 }
   }
 ];
 

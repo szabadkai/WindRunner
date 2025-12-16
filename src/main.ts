@@ -1,4 +1,9 @@
 import './style.css';
+import Phaser from 'phaser';
+import { BootScene } from './scenes/BootScene';
+import { RaceScene } from './scenes/RaceScene';
+import { UIScene } from './scenes/UIScene';
+import { MenuScene } from './scenes/MenuScene';
 import { PauseScene } from './scenes/PauseScene';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -7,6 +12,12 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 720,
   parent: 'app',
   backgroundColor: '#87CEEB',
+  scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: 1280,
+      height: 720
+  },
   physics: {
     default: 'arcade',
     arcade: {

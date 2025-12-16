@@ -12,6 +12,7 @@ export class RaceScene extends Phaser.Scene {
   private course!: Course;
   
   private isRaceActive: boolean = false;
+  private isPreStart: boolean = false;
   private courseIndex: number = 0;
   private startTime: number = 0;
 
@@ -20,6 +21,8 @@ export class RaceScene extends Phaser.Scene {
   }
 
   create(data: { courseIndex: number }) {
+    this.cameras.main.setBackgroundColor('#87CEEB'); // Sky Blue
+    
     this.courseIndex = data.courseIndex || 0;
     const courseData = COURSES[this.courseIndex];
 
@@ -34,13 +37,19 @@ export class RaceScene extends Phaser.Scene {
     ).setOrigin(0, 0).setScrollFactor(0);
 
     // Init Course
-    this.course = new Course(this, courseData.waypoints);
+    this.course = new Course(this, {
+        waypoints: courseData.waypoints, 
+        startLine: courseData.startLine
+    });
 
     // Init Wind
     this.wind = new Wind(this);
 
     // Init Boat at Start Pos
     this.boat = new Boat(this, courseData.startPos.x, courseData.startPos.y);
+    if (courseData.startPos.heading !== undefined) {
+        this.boat.heading = courseData.startPos.heading;
+    }
     
     // Start Sequence
     this.isRaceActive = false;
@@ -67,21 +76,40 @@ export class RaceScene extends Phaser.Scene {
   }
 
   private startCountdown() {
-      let count = 3;
+      let count = 5; // Increase to 5 for sailing start
       // Emit initial count
       this.events.emit('countdown', count);
       
+      // Allow boat update but mark race as Inactive so timer doesn't count up?
+      // Actually, distinct phases: PRE_START, RACING, FINISHED.
+      // 'isRaceActive' used to mean "Game is running".
+      // Now we want "Game is running" but "Race time hasn't started".
+      
+      // Quick fix: Set isRaceActive = true immediately to allow physics.
+      // Use a new flag `isPreStart` for OCS checking.
+      this.isRaceActive = true; 
+      this.isPreStart = true;
+
       this.time.addEvent({
           delay: 1000,
-          repeat: 3,
+          repeat: 5,
           callback: () => {
               count--;
               if (count > 0) {
                   this.events.emit('countdown', count);
               } else if (count === 0) {
                   this.events.emit('countdown', 'GO!');
-                  this.isRaceActive = true;
+                  this.isPreStart = false; // Race officially starts
                   this.startTime = this.time.now;
+                  
+                  // Check OCS
+                  if (this.course.checkOCS(this.boat.y)) {
+                      // Penalty!
+                      this.events.emit('countdown', 'OCS!');
+                      // For now, no hard penalty, just shame.
+                  } else {
+                      this.course.hideStartLine();
+                  }
               } else {
                   this.events.emit('countdown', ''); // Clear
               }
@@ -99,7 +127,7 @@ export class RaceScene extends Phaser.Scene {
         this.course.update(this.boat.x, this.boat.y);
         
         // Check for finish
-        if (this.course.getCurrentTarget() === null) {
+        if (!this.isPreStart && this.course.getCurrentTarget() === null) {
             this.finishRace(time);
         }
     }
@@ -109,8 +137,12 @@ export class RaceScene extends Phaser.Scene {
     this.water.tilePositionY = this.cameras.main.scrollY;
 
     // Emit HUD update
-    const elapsed = this.isRaceActive ? (time - this.startTime) : 0;
-    this.events.emit('updateHUD', {
+  let elapsed = 0;
+  if (this.isRaceActive && !this.isPreStart) {
+      elapsed = time - this.startTime;
+  }
+  
+  this.events.emit('updateHUD', {
         windAngle: this.wind.angle,
         windSpeed: this.wind.speed,
         boatSpeed: this.boat.speed,

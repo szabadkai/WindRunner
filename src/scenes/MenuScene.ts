@@ -7,10 +7,12 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    const width = this.cameras.main.width;
+    this.cameras.main.setBackgroundColor('#0a192f'); // Dark Navy
+    
+    const { width } = this.cameras.main;
 
     // Title
-    this.add.text(width / 2, 100, 'WINDRUNNER', {
+    this.add.text(width / 2, 150, 'WINDRUNNER', {
       fontSize: '64px',
       color: '#ffffff',
       fontStyle: 'bold',

@@ -23,24 +23,29 @@ export class Wind {
       PHYSICS_CONFIG.WIND_SHIFT_INTERVAL_MAX
     );
 
-    // Create a texture for the wind particle (simple white dot)
+    // Create a texture for the wind particle (fog puff)
     if (!scene.textures.exists('wind_particle')) {
         const graphics = scene.make.graphics({ x: 0, y: 0 });
-        graphics.fillStyle(0xffffff, 0.4);
-        graphics.fillCircle(2, 2, 2);
-        graphics.generateTexture('wind_particle', 4, 4);
+        graphics.fillStyle(0xffffff, 0.2);
+        graphics.fillCircle(10, 10, 10);
+        graphics.fillStyle(0xffffff, 0.1);
+        graphics.fillCircle(15, 15, 8);
+        graphics.fillCircle(5, 15, 6);
+        graphics.generateTexture('wind_particle', 30, 30);
     }
 
-    // Init Particle Emitter
+    // Init Particle Emitter - Fog Style
     this.particles = scene.add.particles(0, 0, 'wind_particle', {
         x: { min: -100, max: scene.cameras.main.width + 100 },
         y: { min: -100, max: scene.cameras.main.height + 100 },
-        quantity: 1,
-        frequency: 50,
-        lifespan: 4000,
-        scale: { start: 1, end: 0 },
-        alpha: { start: 0.3, end: 0 },
-        blendMode: 'ADD',
+        quantity: 1, 
+        frequency: 200, // Less frequent
+        lifespan: 10000, // Live longer to drift across
+        scale: { min: 4, max: 8 }, // Very large clouds
+        alpha: { start: 0, end: 0.15, ease: 'Sine.easeInOut' }, // Low opacity (was 0.5)
+        blendMode: 'SCREEN',
+        // Remove rotation to see if it helps 'jitter', or keep smooth rotation
+        rotate: { min: 0, max: 360 },
     });
     this.particles.setScrollFactor(0); // Attach to camera view
   }
@@ -56,9 +61,16 @@ export class Wind {
        }
     }
 
-    // Update particles
-    const speedScale = this.speed * 20; // Scale factor for visuals
+    // Update particles - Drift with wind
+    // We want them to move across the screen in the direction of the wind.
+    const speedScale = 50; // Constant drift speed (pixels per sec approx)
     const rad = Phaser.Math.DegToRad(this.angle - 90);
+    
+    // In Phaser 3, setting particle speedX/Y directly on emitter might not affect *existing* particles 
+    // depending on version, but usually does for *new* ones. 
+    // To affect all, we might need a death zone or just let them spawn with correct velocity.
+    // For now, let's try setting standard config values if speedX/Y isn't working as expected.
+    // But since I'm using this property access, I'll stick to it but lower the value.
     this.particles.speedX = Math.cos(rad) * speedScale;
     this.particles.speedY = Math.sin(rad) * speedScale;
 
