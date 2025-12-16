@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Hull -->
+  <path d="M12 42 C12 42, 32 60, 52 42 L52 42 Z" fill="#1a5f7a" stroke="#fff" stroke-width="2"/>
+  <!-- Mast -->
+  <line x1="32" y1="8" x2="32" y2="42" stroke="#fff" stroke-width="2" />
+  <!-- Main Sail -->
+  <path d="M34 10 L50 38 L34 38 Z" fill="#4fa3d1" stroke="#fff" stroke-width="1"/>
+  <!-- Jib Sail (Optional, adds detail) -->
+  <path d="M30 15 L30 38 L18 38 Z" fill="#8ecae6" stroke="#fff" stroke-width="1"/>
+</svg>
