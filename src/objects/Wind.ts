@@ -5,9 +5,8 @@ export class Wind {
   public angle: number; // Degrees, 0 = North
   public speed: number; // Knots
   private targetAngle: number;
-  private particles: Phaser.GameObjects.Particles.ParticleEmitter;
   
-  // @ts-ignore - scene is used for particles later
+  // @ts-ignore - scene is used for future extensions
   private scene: Phaser.Scene;
   private lastShiftTime: number;
   private nextShiftDelay: number;
@@ -22,32 +21,6 @@ export class Wind {
       PHYSICS_CONFIG.WIND_SHIFT_INTERVAL_MIN,
       PHYSICS_CONFIG.WIND_SHIFT_INTERVAL_MAX
     );
-
-    // Create a texture for the wind particle (fog puff)
-    if (!scene.textures.exists('wind_particle')) {
-        const graphics = scene.make.graphics({ x: 0, y: 0 });
-        graphics.fillStyle(0xffffff, 0.2);
-        graphics.fillCircle(10, 10, 10);
-        graphics.fillStyle(0xffffff, 0.1);
-        graphics.fillCircle(15, 15, 8);
-        graphics.fillCircle(5, 15, 6);
-        graphics.generateTexture('wind_particle', 30, 30);
-    }
-
-    // Init Particle Emitter - Fog Style
-    this.particles = scene.add.particles(0, 0, 'wind_particle', {
-        x: { min: -100, max: scene.cameras.main.width + 100 },
-        y: { min: -100, max: scene.cameras.main.height + 100 },
-        quantity: 1, 
-        frequency: 200, // Less frequent
-        lifespan: 10000, // Live longer to drift across
-        scale: { min: 4, max: 8 }, // Very large clouds
-        alpha: { start: 0, end: 0.15, ease: 'Sine.easeInOut' }, // Low opacity (was 0.5)
-        blendMode: 'SCREEN',
-        // Remove rotation to see if it helps 'jitter', or keep smooth rotation
-        rotate: { min: 0, max: 360 },
-    });
-    this.particles.setScrollFactor(0); // Attach to camera view
   }
 
   update(time: number, _delta: number) {
@@ -60,22 +33,6 @@ export class Wind {
          this.angle += diff * 0.01; 
        }
     }
-
-    // Update particles - Drift with wind
-    // Wind angle represents where wind is coming FROM (0 = from North).
-    // We want particles to drift in the direction the wind BLOWS (opposite direction).
-    // So if wind comes from North (0°), particles should drift South (180°).
-    // Adding 180° converts "wind from" to "wind to", then -90 for Phaser's coordinate system.
-    const speedScale = 50; // Constant drift speed (pixels per sec approx)
-    const rad = Phaser.Math.DegToRad(this.angle + 180 - 90);
-    
-    // In Phaser 3, setting particle speedX/Y directly on emitter might not affect *existing* particles 
-    // depending on version, but usually does for *new* ones. 
-    // To affect all, we might need a death zone or just let them spawn with correct velocity.
-    // For now, let's try setting standard config values if speedX/Y isn't working as expected.
-    // But since I'm using this property access, I'll stick to it but lower the value.
-    this.particles.speedX = Math.cos(rad) * speedScale;
-    this.particles.speedY = Math.sin(rad) * speedScale;
 
     if (time > this.lastShiftTime + this.nextShiftDelay) {
       this.scheduleShift(time);
