@@ -263,11 +263,21 @@ export class UIScene extends Phaser.Scene {
     g.clear();
     
     const radius = 30;
-    const startAngle = Math.PI; // Left (180°)
+    // Top-half arc: Draws from PI (Left) to 2*PI (Right) via Top (3PI/2)
+    // Canvas angles: 0=Right, PI=Left, 3PI/2=Up (since Y is down) -> Clockwise increases angle
     const maxHeel = 45;
     
-    // Helper to convert heel angle to arc position
-    const heelToRad = (heel: number) => startAngle - (heel / maxHeel) * Math.PI;
+    // Map heel 0..45 to PI..2PI? 
+    // Actually, let's Map 0 heel to PI (Left). 45 heel to PI + PI/4? (1.25 PI). 
+    // Or do we want a full semi-circle for 0-45? No, 0-45 is a specific range.
+    // Let's scale it so 0 is Left (PI) and 45 is Up-Right (1.75 PI)?
+    // Or just Map 0-45 degrees directly to an arc?
+    // Let's show a 180 degree gauge representing 0-60 degrees? 
+    // Let's Stick to: Left=0deg, Top=22.5deg, Right=45deg? 
+    // StartAngle = PI.
+    // EndAngle (max) = 2*PI. 
+    // So 0..45 maps to PI..2PI.
+    const heelToRad = (heel: number) => Math.PI + (heel / maxHeel) * Math.PI;
     
     // Draw background arc segments with color coding
     const segments = [
@@ -281,7 +291,8 @@ export class UIScene extends Phaser.Scene {
     for (const seg of segments) {
       g.lineStyle(6, seg.color, 0.4);
       g.beginPath();
-      g.arc(0, 0, radius, heelToRad(seg.end), heelToRad(seg.start), false);
+      // Draw clockwise from start angle to end angle
+      g.arc(0, 0, radius, heelToRad(seg.start), heelToRad(seg.end), false);
       g.strokePath();
     }
     
@@ -290,12 +301,17 @@ export class UIScene extends Phaser.Scene {
     g.lineStyle(3, 0xffffff);
     g.beginPath();
     g.moveTo(0, 0);
-    g.lineTo(Math.cos(needleAngle) * (radius - 5), -Math.sin(needleAngle) * (radius - 5));
+    // Standard cos/sin for Canvas (Y is down, so sin is + down, - up)
+    // Our angles are PI..2PI, so sin will be negative (Up), which is correct
+    g.lineTo(Math.cos(needleAngle) * (radius - 5), Math.sin(needleAngle) * (radius - 5));
     g.strokePath();
     
     // Center dot
     g.fillStyle(0xffffff);
     g.fillCircle(0, 0, 4);
+    
+    // Add Labels? (0° left, 45° right)
+    // Maybe later
   }
 
   /**

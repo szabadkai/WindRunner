@@ -13,6 +13,7 @@ export class Boat extends Phaser.GameObjects.Container {
   
   private hullGraphics!: Phaser.GameObjects.Graphics;
   private sailGraphics!: Phaser.GameObjects.Graphics;
+  private heelText!: Phaser.GameObjects.Text;
   
   private swirls!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -60,6 +61,12 @@ export class Boat extends Phaser.GameObjects.Container {
     // Draw Hull
     this.hullGraphics = scene.add.graphics();
     this.add(this.hullGraphics);
+    
+    // Heel Text on Boat (initially hidden or empty)
+    this.heelText = scene.add.text(25, 0, '', { fontSize: '12px', color: '#ffffff' }).setOrigin(0, 0.5);
+    this.add(this.heelText);
+
+    // Initial Draw
     this.drawHull();
 
     // Draw Sail
@@ -256,7 +263,44 @@ export class Boat extends Phaser.GameObjects.Container {
     this.hullGraphics.fillStyle(0x555555);
     this.hullGraphics.fillCircle(0, 10, 5 * heelScale); // Cockpit/Mast base area
     this.hullGraphics.fillStyle(0xaaaaaa);
-    this.hullGraphics.fillCircle(0, -15, 2); // Mast step
+    this.hullGraphics.fillCircle(0, -15, 2); // Mast step (Base)
+    
+    // Mast Tilt Visualization
+    // Draw a line from Mast Step to "Mast Top", offset by heel angle
+    // simulates looking top-down at a leaning mast
+    if (heelAmount > 1) {
+        // Height of mast in pixels (virtual)
+        const mastHeight = 40;
+        // Offset = sin(heel) * height
+        // Heeling to Starboard (Right)? Wind pushes sail.
+        // If wind from left, boat heels right.
+        // Let's assume heel is always pushed sideways relative to boat.
+        // For visual simplicity, let's say it always heels "Downwind" relative to hull?
+        // Or just always to one side for now since heelAngle is absolute in our physics?
+        // Let's alternate side based on tack? But we don't track tack side easily here yet.
+        // Let's just always heel to Right for visualization if positive?
+        // Physics calc gives positive angle.
+        // Let's assume standard heel is to Right (Starboard) for now, or check wind?
+        // Simple: Just offset X positive.
+        
+        const tipOffset = Math.sin(Phaser.Math.DegToRad(heelAmount)) * mastHeight;
+        const tipX = tipOffset;
+        const tipY = -15; // Same Y as step, just leaning out
+        
+        this.hullGraphics.lineStyle(2, 0xffff00, 0.7);
+        this.hullGraphics.moveTo(0, -15);
+        this.hullGraphics.lineTo(tipX, tipY);
+        this.hullGraphics.strokePath();
+        
+        this.hullGraphics.fillStyle(0xffff00, 1);
+        this.hullGraphics.fillCircle(tipX, tipY, 3); // Mast Tip
+        
+        // Update Text
+        this.heelText.setText(`${Math.round(heelAmount)}°`);
+        this.heelText.setVisible(true);
+    } else {
+        this.heelText.setVisible(false);
+    }
   }
 
   private drawSail() {
