@@ -89,16 +89,19 @@ export class RaceScene extends Phaser.Scene {
 
     // Reset OCS Flag
     this.isOCS = false;
+    this.currentGhostIndex = 0;
     
     // ... (rest of create) ...
     // Init Ghost
     this.ghostData = ProgressionSystem.loadGhost(this.courseIndex);
-    if (this.ghostData) {
+    if (this.ghostData && this.ghostData.inputData.length > 0) {
         // Find ghost start pos (first frame)
         const frame = this.ghostData.inputData[0];
         if (frame) {
             this.ghostBoat = new GhostBoat(this, frame.x, frame.y);
         }
+    } else {
+        this.ghostData = null;
     }
     
     // Start Sequence
@@ -205,9 +208,15 @@ export class RaceScene extends Phaser.Scene {
                 this.currentGhostIndex++;
                 frame = this.ghostData.inputData[this.currentGhostIndex];
             }
-            
-            // Interpolate? For now just snap to nearest previous frame or linear interp
-            if (this.currentGhostIndex > 0) {
+
+            // If we've gone past the recording, hold the last frame.
+            if (this.currentGhostIndex >= this.ghostData.inputData.length) {
+                const last = this.ghostData.inputData[this.ghostData.inputData.length - 1];
+                if (last) {
+                    this.ghostBoat.updateState(last.x, last.y, last.h, last.s);
+                }
+            } else if (this.currentGhostIndex > 0) {
+                // Interpolate? For now just snap to nearest previous frame or linear interp
                 const prev = this.ghostData.inputData[this.currentGhostIndex - 1];
                 const next = this.ghostData.inputData[this.currentGhostIndex];
                 if (prev && next) {
@@ -221,7 +230,7 @@ export class RaceScene extends Phaser.Scene {
                     this.ghostBoat.updateState(x, y, hDeg, prev.s);
                 }
             } else if (frame) {
-                 this.ghostBoat.updateState(frame.x, frame.y, frame.h, frame.s);
+                this.ghostBoat.updateState(frame.x, frame.y, frame.h, frame.s);
             }
         }
         

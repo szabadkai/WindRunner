@@ -9,9 +9,11 @@ export interface GhostData {
 }
 
 export class ProgressionSystem {
+  private static readonly GHOST_TIME_TOLERANCE_MS = 2; // allow small float/rounding differences
+
   static getBestTime(courseIndex: number): number | null {
     const raw = localStorage.getItem(`best_time_${courseIndex}`);
-    return raw ? parseInt(raw) : null;
+    return raw ? parseFloat(raw) : null;
   }
 
   static getStarsForCourse(courseIndex: number): number {
@@ -70,6 +72,17 @@ export class ProgressionSystem {
     // Ideally we only save ghost for BEST run.
     // Check if this run is better than stored ghost?
     // Actually simplicity: If we just set a High Score, we save this ghost.
+    const bestTime = this.getBestTime(courseIndex);
+    if (bestTime !== null && recording.time - bestTime > this.GHOST_TIME_TOLERANCE_MS) {
+      // Should never happen, but avoid persisting a slower ghost than the recorded best time.
+      return;
+    }
+    
+    const existingGhost = this.loadGhost(courseIndex);
+    if (existingGhost && recording.time + this.GHOST_TIME_TOLERANCE_MS >= existingGhost.time) {
+      // Keep the fastest ghost available.
+      return;
+    }
     
     // Compress/Stringify
     // To save space, maybe limit resolution or length? 
@@ -89,7 +102,18 @@ export class ProgressionSystem {
       const raw = localStorage.getItem(`ghost_${courseIndex}`);
       if (!raw) return null;
       try {
-          return JSON.parse(raw) as GhostData;
+          const ghost = JSON.parse(raw) as GhostData;
+          const bestTime = this.getBestTime(courseIndex);
+          // If the stored ghost is slower than the known best time, skip it so we don't show a slower run.
+          if (bestTime !== null && ghost.time - bestTime > this.GHOST_TIME_TOLERANCE_MS) {
+              console.warn('Ignoring slower ghost than best time', { courseIndex, ghostTime: ghost.time, bestTime });
+              return null;
+          }
+          // If ghost is faster than best time (data drift), keep it and normalize the best time to match.
+          if (bestTime === null || bestTime - ghost.time > this.GHOST_TIME_TOLERANCE_MS) {
+              localStorage.setItem(`best_time_${courseIndex}`, ghost.time.toString());
+          }
+          return ghost;
       } catch (e) {
           console.error('Corrupt ghost data', e);
           return null;

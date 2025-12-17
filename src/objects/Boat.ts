@@ -13,10 +13,13 @@ export class Boat extends Phaser.GameObjects.Container {
   public cargo: Cargo[] = []; // Cargo Hold
 
   private wake!: Phaser.GameObjects.Particles.ParticleEmitter;
-  
+
   private hullGraphics!: Phaser.GameObjects.Graphics;
   private sailGraphics!: Phaser.GameObjects.Graphics;
   private heelText!: Phaser.GameObjects.Text;
+  private sailCamber: number = 0.25;
+  private sailFill: number = 0;
+  private sailFlailTime: number = 0;
   
   private swirls!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -158,11 +161,28 @@ export class Boat extends Phaser.GameObjects.Container {
     // Determine which side wind is filling from (Port or Starboard)
     // Normalize to -180 to 180
     let windDiff = Phaser.Math.Angle.WrapDegrees(apparentWindAngle);
+    const absWindDiff = Math.abs(windDiff);
     
     // Boom Angle: proportional to sail trim, but limited by wind.
     // If wind is from right, boom goes left.
     // Max boom angle is roughly trim value (0 to 90 degrees).
-    const maxBoomAngle = (this.sailTrim / 100) * 90; 
+    const maxBoomAngle = (this.sailTrim / 100) * 90;
+
+    // Trim efficiency to drive visuals (also lets us detect stalls)
+    const trimRelativeAngle = Phaser.Math.Clamp(absWindDiff, PHYSICS_CONFIG.NO_GO_ZONE_ANGLE, 180);
+    const optimalTrim = ((trimRelativeAngle - PHYSICS_CONFIG.NO_GO_ZONE_ANGLE) / (180 - PHYSICS_CONFIG.NO_GO_ZONE_ANGLE)) * 100;
+    const trimDeviation = Math.abs(this.sailTrim - optimalTrim);
+    const trimEfficiency = Phaser.Math.Clamp(1 - (trimDeviation / 60), 0, 1);
+
+    // Stall / luff when too close to no-go or badly trimmed
+    const stallSeverity = Phaser.Math.Clamp(
+      (absWindDiff < PHYSICS_CONFIG.NO_GO_ZONE_ANGLE ? 0.6 : 0) + (1 - trimEfficiency),
+      0,
+      1
+    );
+    this.sailFlailTime += this.scene.game.loop.delta;
+    const flailOsc = Math.sin(this.sailFlailTime * 0.02) + Math.cos(this.sailFlailTime * 0.017);
+    const flailStrengthRaw = stallSeverity * Phaser.Math.Linear(0.5, 4, wind.speed / PHYSICS_CONFIG.WIND_SPEED_MAX);
     
     // Boom pushes away from wind
     let currentBoomAngle = 0;
@@ -170,14 +190,37 @@ export class Boat extends Phaser.GameObjects.Container {
         const side = windDiff > 0 ? -1 : 1; // Wind right -> Boom left
         currentBoomAngle = side * maxBoomAngle;
     }
+    const jitterTaper = Phaser.Math.Clamp(maxBoomAngle / 90, 0, 1); // tight trim reduces flutter
+    const flailStrength = flailStrengthRaw * jitterTaper;
+    const boomShake = flailStrength * flailOsc;
+    const baseSign = Math.sign(currentBoomAngle || (windDiff >= 0 ? -1 : 1));
+    currentBoomAngle += boomShake;
+    if (currentBoomAngle * baseSign <= 0) {
+      currentBoomAngle = baseSign * Math.max(2, Math.abs(currentBoomAngle) * 0.3);
+    }
+    currentBoomAngle = Phaser.Math.Clamp(currentBoomAngle, -maxBoomAngle - 8, maxBoomAngle + 8);
+
+    // Visual shaping: puff more downwind, keep some camber while tacking
+    const sailPower = Phaser.Math.Clamp(baseSpeed / PHYSICS_CONFIG.MAX_BOAT_SPEED, 0, 1);
+    this.sailFill = Phaser.Math.Linear(this.sailFill, sailPower, 0.12);
+    const downwindPuff = Phaser.Math.Easing.Sine.InOut(Math.max(0, (absWindDiff - 110) / 70));
+    const tackPresence = Phaser.Math.Easing.Sine.Out(1 - Phaser.Math.Clamp((absWindDiff - PHYSICS_CONFIG.NO_GO_ZONE_ANGLE) / 135, 0, 1));
+    const camberTarget = Phaser.Math.Clamp(
+      0.18 + (this.sailFill * 0.45) + (downwindPuff * 0.4) + (tackPresence * 0.18),
+      0,
+      1
+    );
+    this.sailCamber = Phaser.Math.Linear(this.sailCamber, camberTarget, 0.18);
+    const camberJitter = flailStrength * 0.05 * Math.sin(this.sailFlailTime * 0.025);
+    const camberAmount = Phaser.Math.Clamp(this.sailCamber + camberJitter, 0.12, 1);
 
     // Update Sail Graphics (Curve)
     this.sailGraphics.clear();
     
     // Boom
     this.sailGraphics.lineStyle(3, 0xcccccc);
-    const boomLen = 40;
-    const mastY = -15;
+    const boomLen = 55;
+    const mastY = -18;
     
     // Calculate Boom End Point based on currentBoomAngle
     // -90 because 0 is right in Phaser math, we want 0 to be DOWN (aft) relative to boat? 
@@ -189,6 +232,8 @@ export class Boat extends Phaser.GameObjects.Container {
     const boomX = Math.cos(boomScreenRad) * boomLen;
     const boomY = mastY + Math.sin(boomScreenRad) * boomLen;
 
+    // Boom line (thinner)
+    this.sailGraphics.lineStyle(3, 0xcccccc);
     this.sailGraphics.beginPath();
     this.sailGraphics.moveTo(0, mastY);
     this.sailGraphics.lineTo(boomX, boomY);
@@ -201,13 +246,55 @@ export class Boat extends Phaser.GameObjects.Container {
     // Midpoint of boom
     const midX = (0 + boomX) / 2;
     const midY = (mastY + boomY) / 2;
+    const sailVecX = boomX;
+    const sailVecY = boomY - mastY;
+    const sailLen = Math.max(1, Math.sqrt((sailVecX * sailVecX) + (sailVecY * sailVecY)));
+    const normalSide = currentBoomAngle >= 0 ? 1 : -1; // keep camber on leeward/boom side
+    const normalX = (-sailVecY / sailLen) * normalSide;
+    const normalY = (sailVecX / sailLen) * normalSide;
+    const belly = sailLen * (0.12 + (camberAmount * 0.45) + (downwindPuff * 0.15));
+    const controlX = midX + (normalX * belly);
+    const controlY = midY + (normalY * belly);
+    const clewOvershoot = 1.5 + (this.sailFill * 5) + (downwindPuff * 2);
+    const sailEndX = boomX + (normalX * clewOvershoot);
+    const sailEndY = boomY + (normalY * clewOvershoot);
+    const leechAnchorX = Phaser.Math.Linear(0, sailEndX, 0.65) + (normalX * belly * 0.35);
+    const leechAnchorY = Phaser.Math.Linear(mastY, sailEndY, 0.65) + (normalY * belly * 0.35);
+    const trailingFlap = flailStrength * 2.5 * Math.sin(this.sailFlailTime * 0.035);
+    const leechX = sailEndX + (normalX * trailingFlap);
+    const leechY = sailEndY + (normalY * trailingFlap);
     
-    // Visual Hack: Just curve it slightly "downwind" of the boom line
-    this.sailGraphics.lineStyle(2, 0xffffff);
-    
-    const sailPath = new Phaser.Curves.Path(0, mastY);
-    sailPath.quadraticBezierTo(boomX, boomY, midX + (boomX * 0.2), midY + (boomY * 0.2));
-    sailPath.draw(this.sailGraphics);
+    // Curved leech, straight luff on the mast, foot fills along boom
+    this.sailGraphics.lineStyle(2, 0xffffff, 0.9);
+    const leechPath = new Phaser.Curves.Path(sailEndX, sailEndY);
+    leechPath.quadraticBezierTo(controlX, controlY, leechAnchorX, leechAnchorY);
+
+    const leechPoints = leechPath.getPoints(18);
+
+    // Foot points follow the boom chord with a tiny sag for depth (fill only, no stroke)
+    const footSag = boomLen * 0.025;
+    const footPoints: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(0, mastY)];
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 4;
+      const fx = Phaser.Math.Linear(0, sailEndX, t);
+      const fy = Phaser.Math.Linear(mastY, sailEndY, t) - (normalY * footSag * (1 - t) * 0.5);
+      footPoints.push(new Phaser.Math.Vector2(fx, fy));
+    }
+
+    // Fill adds volume with straight luff on the mast and curved leech/foot
+    const fillPoints = footPoints.concat(leechPoints);
+    this.sailGraphics.fillStyle(0xffffff, 0.25 + (0.4 * this.sailFill));
+    this.sailGraphics.fillPoints(fillPoints, true);
+    leechPath.draw(this.sailGraphics);
+
+    // Small trailing flick when stalled
+    if (flailStrength > 0.2) {
+      this.sailGraphics.lineStyle(1, 0xffffff, 0.6);
+      this.sailGraphics.beginPath();
+      this.sailGraphics.moveTo(sailEndX, sailEndY);
+      this.sailGraphics.lineTo(leechX, leechY);
+      this.sailGraphics.strokePath();
+    }
     
     // Apply Rotation to container (Movement)
     // The boat sprite rotates, so we just set rotation.
