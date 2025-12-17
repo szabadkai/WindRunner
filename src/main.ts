@@ -5,6 +5,8 @@ import { RaceScene } from './scenes/RaceScene';
 import { UIScene } from './scenes/UIScene';
 import { MenuScene } from './scenes/MenuScene';
 import { PauseScene } from './scenes/PauseScene';
+import { CourierScene } from './scenes/CourierScene';
+import { CourierUIScene } from './scenes/CourierUIScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -25,7 +27,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false
     }
   },
-  scene: [BootScene, MenuScene, RaceScene, UIScene, PauseScene]
+  scene: [BootScene, MenuScene, RaceScene, UIScene, PauseScene, CourierScene, CourierUIScene]
 };
 
 new Phaser.Game(config);

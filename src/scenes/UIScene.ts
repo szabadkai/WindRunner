@@ -114,36 +114,120 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  private createFinishScreen() {
-      this.finishContainer = this.add.container(0, 0).setVisible(false);
-      const w = this.cameras.main.width;
-      const h = this.cameras.main.height;
+  private showFinishScreen(data: { time: number, stars: number, isNewBest: boolean, dsq?: boolean }) {
+    const { width, height } = this.cameras.main;
 
-      // BG
-      const bg = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.8);
-      this.finishContainer.add(bg);
+    // Background Panel
+    const panel = this.add.rectangle(width / 2, height / 2, 600, 400, 0x000000, 0.8)
+        .setInteractive(); // Block input
+    
+    this.finishContainer = this.add.container(0, 0);
+    this.finishContainer.add(panel);
 
-      // Text
-      const title = this.add.text(w/2, h/2 - 50, 'FINISHED!', { fontSize: '64px', color: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
-      this.finishContainer.add(title);
-      
-      const timeLabel = this.add.text(w/2, h/2 + 20, 'Time: 00:00.00', { fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
-      timeLabel.setName('timeLabel'); // Tag for update
-      this.finishContainer.add(timeLabel);
+    const titleText = data.dsq ? 'DISQUALIFIED' : 'FINISHED!';
+    const titleColor = data.dsq ? '#ff0000' : '#ffff00';
 
-      // Restart Button
-      const btn = this.add.text(w/2, h/2 + 100, 'BACK TO MENU', { 
-          fontSize: '24px', 
-          backgroundColor: '#ffffff', 
-          color: '#000000', 
-          padding: { x: 20, y: 10 } 
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      
-      btn.on('pointerdown', () => {
-          this.scene.stop('RaceScene');
-          this.scene.start('MenuScene');
-      });
-      this.finishContainer.add(btn);
+    // Title
+    const title = this.add.text(width / 2, height / 2 - 120, titleText, {
+        fontSize: '48px',
+        color: titleColor,
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    this.finishContainer.add(title);
+
+    if (data.dsq) {
+        // DSQ Message
+        const reason = this.add.text(width / 2, height / 2 - 40, 'OCS - FALSE START', {
+            fontSize: '32px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+        this.finishContainer.add(reason);
+        
+        const sub = this.add.text(width / 2, height / 2 + 10, 'Your result was not recorded.', {
+            fontSize: '20px',
+            color: '#aaaaaa'
+        }).setOrigin(0.5);
+        this.finishContainer.add(sub);
+
+    } else {
+        // Time
+        const timeText = this.add.text(width / 2, height / 2 - 40, `Time: ${this.formatTime(data.time)}`, {
+            fontSize: '32px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+        this.finishContainer.add(timeText);
+
+        // Stars
+        let starString = '★'.repeat(data.stars); // Solid stars
+        const starsText = this.add.text(width / 2, height / 2 + 20, starString, {
+            fontSize: '48px',
+            color: '#ffff00'
+        }).setOrigin(0.5);
+        this.finishContainer.add(starsText);
+        
+        if (data.isNewBest) {
+            const bestText = this.add.text(width / 2, height / 2 + 70, 'NEW BEST TIME!', {
+               fontSize: '24px',
+               color: '#00ff00',
+               fontStyle: 'bold',
+                fill: '#00ff00' // Phaser text color alias
+            }).setOrigin(0.5);
+            // Blink
+            this.tweens.add({
+                targets: bestText,
+                alpha: 0,
+                duration: 500,
+                yoyo: true,
+                repeat: -1
+            });
+            this.finishContainer.add(bestText);
+        }
+    }
+
+    // Menu / Restart Buttons
+    const btnY = height / 2 + 130;
+
+    // Restart
+    const restartBtn = this.add.text(width / 2 - 100, btnY, 'RESTART', {
+        fontSize: '24px',
+        color: '#ffffff',
+        backgroundColor: '#333333',
+        padding: { x: 10, y: 5 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    restartBtn.on('pointerdown', () => {
+         // Restart logic: stop UI, start RaceScene
+         this.scene.stop('UIScene'); // Self
+         const raceScene = this.scene.get('RaceScene') as any; // Access correct scene to restart
+         // Better: emit event or call main scene. 
+         // But UI shouldn't control logic too much.
+         // Actually we can restart the RaceScene directly if we have the key.
+         this.scene.start('RaceScene', { courseIndex: raceScene.courseIndex }); 
+         // Note: raceScene might be stopped or paused? No, it's just finished.
+    });
+    this.finishContainer.add(restartBtn);
+
+    // Menu
+    const menuBtn = this.add.text(width / 2 + 100, btnY, 'MENU', {
+        fontSize: '24px',
+        color: '#ffffff',
+        backgroundColor: '#333333',
+        padding: { x: 10, y: 5 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    menuBtn.on('pointerdown', () => {
+        this.scene.stop('RaceScene');
+        this.scene.stop('UIScene');
+        this.scene.start('MenuScene');
+    });
+    this.finishContainer.add(menuBtn);
+  }
+
+  private formatTime(ms: number): string {
+      const minutes = Math.floor(ms / 60000);
+      const seconds = Math.floor((ms % 60000) / 1000);
+      const centiseconds = Math.floor((ms % 1000) / 10);
+      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   }
 
   private updateCountdown(value: string | number) {
@@ -241,16 +325,42 @@ export class UIScene extends Phaser.Scene {
     this.heelText.setText(`${Math.round(data.heelAngle)}°`);
   }
 
-  private onRaceFinished(time: number) {
+  private onRaceFinished(data: { time: number, stars: number, isNewBest: boolean }) {
       this.finishContainer.setVisible(true);
       this.finishContainer.setDepth(100); // Ensure on top
       
       const timeLabel = this.finishContainer.getByName('timeLabel') as Phaser.GameObjects.Text;
       if (timeLabel) {
+          const time = data.time;
           const minutes = Math.floor(time / 60000);
           const seconds = Math.floor((time % 60000) / 1000);
           const ms = Math.floor((time % 1000) / 10);
           timeLabel.setText(`Time: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`);
+      }
+      
+      // Star Result
+      const starText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 - 120, 
+        '⭐'.repeat(data.stars), 
+        { fontSize: '48px', color: '#ffd700', stroke: '#000000', strokeThickness: 4 }
+      ).setOrigin(0.5);
+      this.finishContainer.add(starText);
+      
+      // New Best
+      if (data.isNewBest) {
+          const bestText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 60, 
+            'NEW RECORD!', 
+            { fontSize: '24px', color: '#00ff00', fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 }
+          ).setOrigin(0.5);
+          
+          this.tweens.add({
+              targets: bestText,
+              scale: { from: 1, to: 1.2 },
+              yoyo: true,
+              repeat: -1,
+              duration: 500
+          });
+          
+          this.finishContainer.add(bestText);
       }
   }
 

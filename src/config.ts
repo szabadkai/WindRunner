@@ -25,3 +25,15 @@ export const HEEL_CONFIG = {
   MAX_HEEL: 45, // degrees - physical clamp
   SENSITIVITY: 1.5, // wind-to-heel response multiplier
 };
+
+export const COURIER_CONFIG = {
+  SESSION_DURATION: 360000, // 6 minutes in ms
+  ISLAND_COUNT: 10,
+  ISLAND_MIN_DISTANCE: 2500, // pixels - drastically increased for 10x scale
+  MAX_CARGO: 2,
+  CARGO_WEIGHT_MULTIPLIER: 1.2, // per item
+  BASE_DELIVERY_TIME: 60000, // 60s
+  UPWIND_PAYOUT_BONUS: 1.5, // multiplier
+  BASE_PAYOUT: 100,
+  DELIVERY_RADIUS: 150, // pixels (increased for easier docking with larger scale)
+};

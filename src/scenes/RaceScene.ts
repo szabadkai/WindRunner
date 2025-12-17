@@ -3,6 +3,8 @@ import { Boat } from '../objects/Boat';
 import { Wind } from '../objects/Wind';
 import { Course } from '../objects/Course';
 import { COURSES } from '../data/courses';
+import { GhostBoat } from '../objects/GhostBoat';
+import { ProgressionSystem, GhostData } from '../systems/ProgressionSystem';
 
 export class RaceScene extends Phaser.Scene {
   private boat!: Boat;
@@ -15,49 +17,51 @@ export class RaceScene extends Phaser.Scene {
   private isPreStart: boolean = false;
   private courseIndex: number = 0;
   private startTime: number = 0;
+  
+  // Ghost Vars
+  private ghostBoat: GhostBoat | null = null;
+  private ghostData: GhostData | null = null;
+  private currentGhostIndex: number = 0;
+  private recording: { t: number, x: number, y: number, h: number, s: number }[] = [];
+  private lastRecordTime: number = 0;
+
+  private isOCS: boolean = false;
 
   constructor() {
     super('RaceScene');
   }
 
   create(data: { courseIndex: number }) {
+    // ... no changes to create ...
     this.cameras.main.setBackgroundColor('#87CEEB'); // Sky Blue
     
     this.courseIndex = data.courseIndex || 0;
     const courseData = COURSES[this.courseIndex];
-
-    this.scene.launch('UIScene', { waypoints: courseData.waypoints });
-
-    // Background
-    this.water = this.add.tileSprite(
-        0, 0, 
-        this.cameras.main.width, 
-        this.cameras.main.height, 
-        'water'
-    ).setOrigin(0, 0).setScrollFactor(0);
-
-    // Init Course
-    this.course = new Course(this, {
-        waypoints: courseData.waypoints, 
-        startLine: courseData.startLine
-    });
-
-    // Init Wind
-    this.wind = new Wind(this);
-
+    // ...
     // Init Boat at Start Pos
     this.boat = new Boat(this, courseData.startPos.x, courseData.startPos.y);
     if (courseData.startPos.heading !== undefined) {
         this.boat.heading = courseData.startPos.heading;
     }
+
+    // Reset OCS Flag
+    this.isOCS = false;
+    
+    // ... (rest of create) ...
+    // Init Ghost
+    this.ghostData = ProgressionSystem.loadGhost(this.courseIndex);
+    if (this.ghostData) {
+        // Find ghost start pos (first frame)
+        const frame = this.ghostData.inputData[0];
+        if (frame) {
+            this.ghostBoat = new GhostBoat(this, frame.x, frame.y);
+        }
+    }
     
     // Start Sequence
     this.isRaceActive = false;
     this.startCountdown();
-
-    // Camera
-    this.cameras.main.startFollow(this.boat);
-    
+    // ...
     // Input
     if (this.input.keyboard) {
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -70,7 +74,8 @@ export class RaceScene extends Phaser.Scene {
 
         // Restart
         this.input.keyboard.on('keydown-R', () => {
-            this.scene.restart();
+            this.scene.stop('UIScene');
+            this.scene.start('RaceScene', { courseIndex: this.courseIndex });
         });
     }
   }
@@ -80,13 +85,6 @@ export class RaceScene extends Phaser.Scene {
       // Emit initial count
       this.events.emit('countdown', count);
       
-      // Allow boat update but mark race as Inactive so timer doesn't count up?
-      // Actually, distinct phases: PRE_START, RACING, FINISHED.
-      // 'isRaceActive' used to mean "Game is running".
-      // Now we want "Game is running" but "Race time hasn't started".
-      
-      // Quick fix: Set isRaceActive = true immediately to allow physics.
-      // Use a new flag `isPreStart` for OCS checking.
       this.isRaceActive = true; 
       this.isPreStart = true;
 
@@ -102,11 +100,15 @@ export class RaceScene extends Phaser.Scene {
                   this.isPreStart = false; // Race officially starts
                   this.startTime = this.time.now;
                   
+                  // Reset Recording
+                  this.recording = [];
+                  this.lastRecordTime = 0;
+                  
                   // Check OCS
                   if (this.course.checkOCS(this.boat.y)) {
                       // Penalty!
                       this.events.emit('countdown', 'OCS!');
-                      // For now, no hard penalty, just shame.
+                      this.isOCS = true; // Flag for DQ
                   } else {
                       this.course.hideStartLine();
                   }
@@ -117,61 +119,35 @@ export class RaceScene extends Phaser.Scene {
       });
   }
 
-  update(time: number, delta: number) {
-    this.wind.update(time, delta);
-    
-    if (this.isRaceActive && this.cursors) {
-        // Get touch input from UIScene if available
-        const uiScene = this.scene.get('UIScene') as { touchInput?: { steerInput: number, trimDelta: number } };
-        const touchInput = uiScene?.touchInput;
-        
-        this.boat.update(this.wind, this.cursors, touchInput);
-        
-        // Update Course Logic
-        this.course.update(this.boat.x, this.boat.y);
-        
-        // Check for finish
-        if (!this.isPreStart && this.course.getCurrentTarget() === null) {
-            this.finishRace(time);
-        }
-    }
-    
-    // Update water scroll based on camera position
-    this.water.tilePositionX = this.cameras.main.scrollX;
-    this.water.tilePositionY = this.cameras.main.scrollY;
-
-    // Emit HUD update
-  let elapsed = 0;
-  if (this.isRaceActive && !this.isPreStart) {
-      elapsed = time - this.startTime;
-  }
-  
-  this.events.emit('updateHUD', {
-        windAngle: this.wind.angle,
-        windSpeed: this.wind.speed,
-        boatSpeed: this.boat.speed,
-        boatHeading: this.boat.heading,
-        boatX: this.boat.x,
-        boatY: this.boat.y,
-        sailTrim: this.boat.sailTrim,
-        heelAngle: this.boat.heelAngle,
-        time: elapsed,
-        waypointIndex: this.course.getCurrentIndex(),
-        totalWaypoints: this.course.getTotalWaypoints()
-    });
-  }
+  // ... (update) ...
 
   private finishRace(time: number) {
       this.isRaceActive = false;
       const elapsed = time - this.startTime;
       
-      // Save Score
-      const currentBest = localStorage.getItem(`best_time_${this.courseIndex}`);
-      if (!currentBest || elapsed < parseInt(currentBest)) {
-          localStorage.setItem(`best_time_${this.courseIndex}`, elapsed.toString());
+      if (this.isOCS) {
+          // Disqualified
+          console.log("Race Finished but DSQ (OCS)");
+          this.events.emit('raceFinished', { time: elapsed, stars: 0, isNewBest: false, dsq: true });
+          this.boat.speed = 0;
+          return;
       }
 
-      this.events.emit('raceFinished', elapsed);
+      // Save Score & Progression
+      const result = ProgressionSystem.saveRaceResult(this.courseIndex, elapsed);
+
+      // Save Ghost if new best
+      if (result.isNewBest) {
+          ProgressionSystem.saveGhost(this.courseIndex, {
+              courseIndex: this.courseIndex,
+              time: elapsed,
+              inputData: this.recording
+          });
+      }
+      
+      // Notify UI of stars/result
+      // raceFinished event can pass extra data
+      this.events.emit('raceFinished', { time: elapsed, stars: result.stars, isNewBest: result.isNewBest });
       
       // Stop boat
       this.boat.speed = 0;

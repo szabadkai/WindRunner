@@ -1,5 +1,6 @@
-import Phaser from 'phaser'; // Import Phaser to use types in JSDoc if needed, or just for the class.
+import Phaser from 'phaser';
 import { COURSES } from '../data/courses';
+import { ProgressionSystem } from '../systems/ProgressionSystem';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -7,52 +8,119 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#0a192f'); // Dark Navy
+    this.cameras.main.setBackgroundColor('#0a192f'); // Keep Dark Navy
     
-    const { width } = this.cameras.main;
+    const { width, height } = this.cameras.main;
 
-    // Title
+    // Title - Minimal Sans-Serif
     this.add.text(width / 2, 100, 'WINDRUNNER', {
-      fontSize: '64px',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '72px',
       color: '#ffffff',
-      fontStyle: 'bold',
-      shadow: { offsetX: 2, offsetY: 2, color: '#000', blur: 5, fill: true }
+      fontStyle: 'bold'
+      // No shadow
     }).setOrigin(0.5);
 
     this.add.text(width / 2, 160, 'Sailing Simulator', {
-      fontSize: '24px',
-      color: '#aaaaff'
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '20px',
+      color: '#8899ac',
+      letterSpacing: 2
     }).setOrigin(0.5);
 
-    // Course Selection
-    this.add.text(width / 2, 230, 'SELECT COURSE', {
-      fontSize: '32px',
-      color: '#ffffff'
+    // --- Regatta Mode (Courses) ---
+    this.add.text(width / 2, 240, 'REGATTA MODE', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '14px',
+      color: '#64ffda', // Cyan/Mint
+      letterSpacing: 1
     }).setOrigin(0.5);
 
-    let yPos = 290;
+    let yPos = 280;
     COURSES.forEach((course, index) => {
-        const btn = this.add.text(width / 2, yPos, course.name.toUpperCase(), {
-            fontSize: '28px',
-            color: '#aaaaaa',
-            backgroundColor: '#00000080',
-            padding: { x: 20, y: 10 }
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-        btn.on('pointerover', () => btn.setColor('#ffffff').setBackgroundColor('#000000aa'));
-        btn.on('pointerout', () => btn.setColor('#aaaaaa').setBackgroundColor('#00000080'));
-        btn.on('pointerdown', () => this.startGame(index));
-
-        // Display High Score
-        const bestTime = localStorage.getItem(`best_time_${index}`);
-        if (bestTime) {
-            this.add.text(width / 2, yPos + 35, `Best: ${this.formatTime(parseInt(bestTime))}`, {
-                fontSize: '16px',
-                color: '#00ff00'
-            }).setOrigin(0.5);
+        const isUnlocked = ProgressionSystem.isCourseUnlocked(index);
+        const stars = ProgressionSystem.getStarsForCourse(index);
+        
+        let color = '#8899ac';
+        let text = course.name;
+        
+        if (!isUnlocked) {
+            color = '#445566';
+            text = `🔒 ${text}`;
         }
 
-        yPos += 100;
+        const btn = this.add.text(width / 2, yPos, text, {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '24px',
+            color: color
+        }).setOrigin(0.5);
+        
+        if (isUnlocked) {
+            btn.setInteractive({ useHandCursor: true });
+            btn.on('pointerover', () => btn.setColor('#64ffda')); // Highlight
+            btn.on('pointerout', () => btn.setColor('#8899ac')); // Normal
+            btn.on('pointerdown', () => this.startGame(index));
+        }
+
+        // Stars & Score (Subtle)
+        if (isUnlocked) {
+             // Stars
+             if (stars > 0) {
+                 const starsText = '★'.repeat(stars); // Solid star
+                 this.add.text(width / 2 + btn.width/2 + 15, yPos, starsText, {
+                     fontFamily: 'Arial, sans-serif',
+                     fontSize: '18px',
+                     color: '#ffd700'
+                 }).setOrigin(0, 0.5);
+             }
+             
+             // Best Time
+            const bestTime = ProgressionSystem.getBestTime(index);
+            if (bestTime) {
+                this.add.text(width / 2, yPos + 25, `${this.formatTime(bestTime)}`, {
+                    fontFamily: 'monospace',
+                    fontSize: '14px',
+                    color: '#64ffda'
+                }).setOrigin(0.5);
+                yPos += 30; 
+            }
+        } else {
+             this.add.text(width / 2, yPos + 25, `Requires ${course.unlockStars} ★`, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '12px',
+                color: '#445566'
+            }).setOrigin(0.5);
+             yPos += 30;
+        }
+
+        yPos += 50;
+    });
+
+    // --- Courier Mode ---
+    const courierY = Math.max(yPos + 50, height - 80);
+    
+    // Minimal Separator
+    // Simple line is fine, or just spacing. Let's use spacing.
+
+    this.add.text(width / 2, courierY - 30, 'FREE ROAM', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '14px',
+      color: '#64ffda',
+      letterSpacing: 1
+    }).setOrigin(0.5);
+
+    const courierBtn = this.add.text(width / 2, courierY, 'Courier Mode', {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '24px',
+        color: '#ffffff'
+    })
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true });
+    
+    courierBtn.on('pointerover', () => courierBtn.setColor('#64ffda'));
+    courierBtn.on('pointerout', () => courierBtn.setColor('#ffffff'));
+    courierBtn.on('pointerdown', () => {
+        this.scene.start('CourierScene');
     });
   }
 

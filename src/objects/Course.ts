@@ -54,7 +54,6 @@ export class Course {
     } else {
         // Finish
         this.isFinished = true;
-        this.scene.events.emit('raceFinished');
     }
   }
 

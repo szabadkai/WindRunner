@@ -1,13 +1,16 @@
 import Phaser from 'phaser';
 import { SailPhysics } from '../physics/SailPhysics';
-import { PHYSICS_CONFIG } from '../config';
+import { PHYSICS_CONFIG, COURIER_CONFIG } from '../config';
 import { Wind } from './Wind';
+import { Cargo } from './Cargo';
 
 export class Boat extends Phaser.GameObjects.Container {
   public speed: number = 0;
   public heading: number = 0; // Degrees, 0=North
   public sailTrim: number = 50; // 0-100%
   public heelAngle: number = 0; // Degrees, 0-45
+  
+  public cargo: Cargo[] = []; // Cargo Hold
 
   private wake!: Phaser.GameObjects.Particles.ParticleEmitter;
   
@@ -119,7 +122,20 @@ export class Boat extends Phaser.GameObjects.Container {
     // Calculate heel angle and speed multiplier
     this.heelAngle = SailPhysics.calculateHeelAngle(windForce, this.sailTrim, this.speed);
     const heelMultiplier = SailPhysics.getHeelSpeedMultiplier(this.heelAngle);
-    const targetSpeed = baseSpeed * heelMultiplier;
+    
+    // Weight Penalty
+    // Each cargo item adds 20% weight penalty (example) logic from config
+    // Actually CONFIG says multiplier 1.2 per item.
+    // So if 1 item, weight factor = 1.2
+    // If 2 items, weight factor = 1.44? Or additive 1.4? 
+    // Let's stick to simple mass = 1 + (count * 0.2)
+    // Acceleration = Force / Mass.
+    // So target speed (terminal velocity) should be divided by Mass? Or sqrt(Mass)? 
+    // Simplified: Speed penalty = 1 / Mass.
+    const mass = 1 + (this.cargo.length * (COURIER_CONFIG.CARGO_WEIGHT_MULTIPLIER - 1));
+    const weightPenalty = 1 / mass;
+
+    const targetSpeed = baseSpeed * heelMultiplier * weightPenalty;
     
     // Inertia / Accel
     if (this.speed < targetSpeed) {
@@ -316,5 +332,30 @@ export class Boat extends Phaser.GameObjects.Container {
     this.sailGraphics.moveTo(0, -15); // Mast position
     this.sailGraphics.lineTo(0, 25);  // Boom end
     this.sailGraphics.strokePath();
+  }
+
+  addCargo(item: Cargo): boolean {
+    if (this.cargo.length < COURIER_CONFIG.MAX_CARGO) {
+      this.cargo.push(item);
+      this.updateAppearance(); // Maybe show cargo on deck?
+      return true;
+    }
+    return false;
+  }
+
+  removeCargo(id: string): Cargo | undefined {
+    const idx = this.cargo.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      const removed = this.cargo.splice(idx, 1)[0];
+      this.updateAppearance();
+      return removed;
+    }
+    return undefined;
+  }
+  
+  private updateAppearance() {
+    // Optional: Add visuals for cargo
+    // For now, just Log
+    console.log(`Boat Cargo: ${this.cargo.length}/${COURIER_CONFIG.MAX_CARGO}`);
   }
 }

@@ -43,7 +43,9 @@ export class PauseScene extends Phaser.Scene {
 
     quitBtn.on('pointerdown', () => {
       this.scene.stop('RaceScene');
+      this.scene.stop('CourierScene');
       this.scene.stop('UIScene');
+      this.scene.stop('CourierUIScene');
       this.scene.stop('PauseScene');
       this.scene.start('MenuScene');
     });
@@ -58,7 +60,8 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private resumeGame() {
-      this.scene.resume('RaceScene');
+      if (this.scene.isPaused('RaceScene')) this.scene.resume('RaceScene');
+      if (this.scene.isPaused('CourierScene')) this.scene.resume('CourierScene');
       this.scene.stop();
   }
 }

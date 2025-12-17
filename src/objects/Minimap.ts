@@ -12,7 +12,11 @@ export class Minimap extends Phaser.GameObjects.Container {
   private offsetX: number = 0;
   private offsetY: number = 0;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, courseWaypoints: { x: number, y: number }[]) {
+  // Add cleanup for text objects if we re-render or destroy
+  // But setupIslands clears graphics, text needs manual cleanup if re-run.
+  // For now assuming run once.
+
+  constructor(scene: Phaser.Scene, x: number, y: number, courseWaypoints: { x: number, y: number }[] = []) {
     super(scene, x, y);
 
     // Background
@@ -34,7 +38,37 @@ export class Minimap extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
 
-    this.setupCourse(courseWaypoints);
+    if (courseWaypoints.length > 0) {
+        this.setupCourse(courseWaypoints);
+    }
+  }
+
+  setupIslands(islands: { x: number, y: number, id: string, islandName: string }[], worldWidth: number, worldHeight: number) {
+      // Set fixed world scale
+      this.mapScaleX = this.mapWidth / worldWidth;
+      this.mapScaleY = this.mapHeight / worldHeight;
+      const scale = Math.min(this.mapScaleX, this.mapScaleY);
+      this.mapScaleX = scale;
+      this.mapScaleY = scale;
+      
+      this.offsetX = 0; // Starts at 0,0
+      this.offsetY = 0;
+
+      this.waypointsLayer.clear();
+      
+      // Draw Islands
+      this.waypointsLayer.fillStyle(0x00ff00, 1); // Green for islands
+      
+      islands.forEach(island => {
+          const mx = (island.x - this.offsetX) * this.mapScaleX - this.mapWidth/2;
+          const my = (island.y - this.offsetY) * this.mapScaleY - this.mapHeight/2;
+          
+          this.waypointsLayer.fillCircle(mx, my, 4);
+          
+          // Island Names
+          const text = this.scene.add.text(mx, my - 10, island.islandName, { fontSize: '10px', color: '#ffffff' }).setOrigin(0.5);
+          this.add(text); // Add to container
+      });
   }
 
   private setupCourse(waypoints: { x: number, y: number }[]) {
