@@ -32,12 +32,30 @@ export class RaceScene extends Phaser.Scene {
   }
 
   create(data: { courseIndex: number }) {
-    // ... no changes to create ...
     this.cameras.main.setBackgroundColor('#87CEEB'); // Sky Blue
     
     this.courseIndex = data.courseIndex || 0;
     const courseData = COURSES[this.courseIndex];
-    // ...
+
+    this.scene.launch('UIScene', { waypoints: courseData.waypoints });
+
+    // Background
+    this.water = this.add.tileSprite(
+        0, 0, 
+        this.cameras.main.width, 
+        this.cameras.main.height, 
+        'water'
+    ).setOrigin(0, 0).setScrollFactor(0);
+
+    // Init Course
+    this.course = new Course(this, {
+        waypoints: courseData.waypoints, 
+        startLine: courseData.startLine
+    });
+
+    // Init Wind
+    this.wind = new Wind(this);
+
     // Init Boat at Start Pos
     this.boat = new Boat(this, courseData.startPos.x, courseData.startPos.y);
     if (courseData.startPos.heading !== undefined) {
@@ -61,7 +79,10 @@ export class RaceScene extends Phaser.Scene {
     // Start Sequence
     this.isRaceActive = false;
     this.startCountdown();
-    // ...
+
+    // Camera
+    this.cameras.main.startFollow(this.boat);
+    
     // Input
     if (this.input.keyboard) {
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -119,7 +140,92 @@ export class RaceScene extends Phaser.Scene {
       });
   }
 
-  // ... (update) ...
+  update(time: number, delta: number) {
+    this.wind.update(time, delta);
+    
+    if (this.isRaceActive && this.cursors) {
+        // Get touch input from UIScene if available
+        const uiScene = this.scene.get('UIScene') as { touchInput?: { steerInput: number, trimDelta: number } };
+        const touchInput = uiScene?.touchInput;
+        
+        
+        this.boat.update(this.wind, this.cursors, touchInput);
+        
+        // Record Ghost (10Hz = every 100ms)
+        if (!this.isPreStart && time > this.lastRecordTime + 100) {
+            this.lastRecordTime = time;
+            this.recording.push({
+                t: time - this.startTime,
+                x: this.boat.x,
+                y: this.boat.y,
+                h: this.boat.heading,
+                s: this.boat.sailTrim
+            });
+        }
+        
+        // Play Ghost
+        if (this.ghostBoat && this.ghostData && !this.isPreStart) {
+            const elapsed = time - this.startTime;
+            
+            // Catch up index
+            let frame = this.ghostData.inputData[this.currentGhostIndex];
+            while (frame && frame.t < elapsed) {
+                this.currentGhostIndex++;
+                frame = this.ghostData.inputData[this.currentGhostIndex];
+            }
+            
+            // Interpolate? For now just snap to nearest previous frame or linear interp
+            if (this.currentGhostIndex > 0) {
+                const prev = this.ghostData.inputData[this.currentGhostIndex - 1];
+                const next = this.ghostData.inputData[this.currentGhostIndex];
+                if (prev && next) {
+                    const ratio = (elapsed - prev.t) / (next.t - prev.t);
+                    const x = Phaser.Math.Linear(prev.x, next.x, ratio);
+                    const y = Phaser.Math.Linear(prev.y, next.y, ratio);
+                    // Angle lerp
+                    // Just simple linear for heading (wrap check needed but simple usually ok)
+                    const hDeg = Phaser.Math.Linear(prev.h, next.h, ratio);
+                    
+                    this.ghostBoat.updateState(x, y, hDeg, prev.s);
+                }
+            } else if (frame) {
+                 this.ghostBoat.updateState(frame.x, frame.y, frame.h, frame.s);
+            }
+        }
+        
+        // Update Course Logic
+        this.course.update(this.boat.x, this.boat.y);
+        
+        // Check for finish
+        if (!this.isPreStart && this.course.getCurrentTarget() === null) {
+            this.finishRace(time);
+        }
+    }
+    
+    // Update water scroll based on camera position
+    this.water.tilePositionX = this.cameras.main.scrollX;
+    this.water.tilePositionY = this.cameras.main.scrollY;
+
+    // Emit HUD update
+  let elapsed = 0;
+  if (this.isRaceActive && !this.isPreStart) {
+      elapsed = time - this.startTime;
+  }
+  
+  this.events.emit('updateHUD', {
+        windAngle: this.wind.angle,
+        windSpeed: this.wind.speed,
+        boatSpeed: this.boat.speed,
+        boatHeading: this.boat.heading,
+        boatX: this.boat.x,
+        boatY: this.boat.y,
+        sailTrim: this.boat.sailTrim,
+        heelAngle: this.boat.heelAngle,
+        time: elapsed,
+        waypointIndex: this.course.getCurrentIndex(),
+        totalWaypoints: this.course.getTotalWaypoints()
+    });
+  }
 
   private finishRace(time: number) {
       this.isRaceActive = false;

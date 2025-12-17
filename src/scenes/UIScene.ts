@@ -88,8 +88,8 @@ export class UIScene extends Phaser.Scene {
     ).setOrigin(0.5);
 
     // Finish Screen (Hidden)
-    this.createFinishScreen();
-
+    // this.finishContainer = this.add.container(0, 0); // Init if needed, but showFinishScreen creates it.
+    
     // Minimap (Top Right)
     if (data && data.waypoints) {
         this.minimap = new Minimap(this, this.cameras.main.width - 110, 110, data.waypoints);
@@ -115,6 +115,10 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showFinishScreen(data: { time: number, stars: number, isNewBest: boolean, dsq?: boolean }) {
+    if (this.finishContainer) {
+        this.finishContainer.destroy();
+    }
+
     const { width, height } = this.cameras.main;
 
     // Background Panel
@@ -169,8 +173,7 @@ export class UIScene extends Phaser.Scene {
             const bestText = this.add.text(width / 2, height / 2 + 70, 'NEW BEST TIME!', {
                fontSize: '24px',
                color: '#00ff00',
-               fontStyle: 'bold',
-                fill: '#00ff00' // Phaser text color alias
+               fontStyle: 'bold'
             }).setOrigin(0.5);
             // Blink
             this.tweens.add({
@@ -325,43 +328,8 @@ export class UIScene extends Phaser.Scene {
     this.heelText.setText(`${Math.round(data.heelAngle)}°`);
   }
 
-  private onRaceFinished(data: { time: number, stars: number, isNewBest: boolean }) {
-      this.finishContainer.setVisible(true);
-      this.finishContainer.setDepth(100); // Ensure on top
-      
-      const timeLabel = this.finishContainer.getByName('timeLabel') as Phaser.GameObjects.Text;
-      if (timeLabel) {
-          const time = data.time;
-          const minutes = Math.floor(time / 60000);
-          const seconds = Math.floor((time % 60000) / 1000);
-          const ms = Math.floor((time % 1000) / 10);
-          timeLabel.setText(`Time: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`);
-      }
-      
-      // Star Result
-      const starText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 - 120, 
-        '⭐'.repeat(data.stars), 
-        { fontSize: '48px', color: '#ffd700', stroke: '#000000', strokeThickness: 4 }
-      ).setOrigin(0.5);
-      this.finishContainer.add(starText);
-      
-      // New Best
-      if (data.isNewBest) {
-          const bestText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 60, 
-            'NEW RECORD!', 
-            { fontSize: '24px', color: '#00ff00', fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 }
-          ).setOrigin(0.5);
-          
-          this.tweens.add({
-              targets: bestText,
-              scale: { from: 1, to: 1.2 },
-              yoyo: true,
-              repeat: -1,
-              duration: 500
-          });
-          
-          this.finishContainer.add(bestText);
-      }
+  private onRaceFinished(data: { time: number, stars: number, isNewBest: boolean, dsq?: boolean }) {
+      this.showFinishScreen(data);
   }
 
   /**
