@@ -27,8 +27,11 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false
     }
   },
+  audio: {
+    disableWebAudio: false,
+    noAudio: false
+  },
   scene: [BootScene, MenuScene, RaceScene, UIScene, PauseScene, CourierScene, CourierUIScene]
 };
 
 new Phaser.Game(config);
-

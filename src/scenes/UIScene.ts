@@ -1,5 +1,5 @@
-import Phaser from 'phaser';
 import { Minimap } from '../objects/Minimap';
+import { SoundManager } from '../systems/SoundManager';
 
 export class UIScene extends Phaser.Scene {
   private windArrow!: Phaser.GameObjects.Graphics;
@@ -187,7 +187,9 @@ export class UIScene extends Phaser.Scene {
         }
     }
 
-    // Menu / Restart Buttons
+
+
+// ...    // Menu / Restart Buttons
     const btnY = height / 2 + 130;
 
     // Restart
@@ -198,15 +200,17 @@ export class UIScene extends Phaser.Scene {
         padding: { x: 10, y: 5 }
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     
+    restartBtn.on('pointerover', () => {
+         SoundManager.getInstance().playHover();
+    });
+
     restartBtn.on('pointerdown', () => {
+         SoundManager.getInstance().playSelect(); // Sound
          // Restart logic: stop UI, start RaceScene
          this.scene.stop('UIScene'); // Self
          const raceScene = this.scene.get('RaceScene') as any; // Access correct scene to restart
-         // Better: emit event or call main scene. 
-         // But UI shouldn't control logic too much.
-         // Actually we can restart the RaceScene directly if we have the key.
+         raceScene.keepBgmForRestart?.();
          this.scene.start('RaceScene', { courseIndex: raceScene.courseIndex }); 
-         // Note: raceScene might be stopped or paused? No, it's just finished.
     });
     this.finishContainer.add(restartBtn);
 
@@ -218,7 +222,12 @@ export class UIScene extends Phaser.Scene {
         padding: { x: 10, y: 5 }
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     
+    menuBtn.on('pointerover', () => {
+         SoundManager.getInstance().playHover();
+    });
+    
     menuBtn.on('pointerdown', () => {
+        SoundManager.getInstance().playBack(); // Sound
         this.scene.stop('RaceScene');
         this.scene.stop('UIScene');
         this.scene.start('MenuScene');
@@ -515,5 +524,4 @@ export class UIScene extends Phaser.Scene {
       this.tutorialContainer.add(instructions);
   }
 }
-
 

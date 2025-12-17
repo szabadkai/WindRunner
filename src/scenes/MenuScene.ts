@@ -1,6 +1,7 @@
-import Phaser from 'phaser';
 import { COURSES } from '../data/courses';
 import { ProgressionSystem } from '../systems/ProgressionSystem';
+import { SoundManager } from '../systems/SoundManager';
+import { AudioSettings } from '../systems/AudioSettings';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -11,6 +12,42 @@ export class MenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0a192f'); // Keep Dark Navy
     
     const { width, height } = this.cameras.main;
+
+    AudioSettings.apply(this);
+
+    // Ensure audio contexts unlock on first user input
+    const unlockAudio = () => {
+        if (this.sound.locked) {
+            this.sound.unlock();
+        }
+        SoundManager.getInstance().unlock();
+    };
+    this.input.once('pointerdown', unlockAudio);
+    this.input.keyboard?.once('keydown', unlockAudio);
+
+    const getAudioLabel = () => AudioSettings.isMuted() ? 'Unmute Audio (M)' : 'Mute Audio (M)';
+    const toggleAudio = () => {
+        AudioSettings.toggle(this);
+        audioToggle.setText(getAudioLabel());
+    };
+
+    const audioToggle = this.add.text(width - 20, 30, getAudioLabel(), {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '16px',
+        color: '#64ffda'
+    }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+
+    audioToggle.on('pointerover', () => {
+        SoundManager.getInstance().playHover();
+        audioToggle.setColor('#ffffff');
+    });
+    audioToggle.on('pointerout', () => audioToggle.setColor('#64ffda'));
+    audioToggle.on('pointerdown', () => {
+        SoundManager.getInstance().playSelect();
+        toggleAudio();
+    });
+
+    this.input.keyboard?.on('keydown-M', toggleAudio);
 
     // Title - Minimal Sans-Serif
     this.add.text(width / 2, 100, 'WINDRUNNER', {
@@ -57,9 +94,15 @@ export class MenuScene extends Phaser.Scene {
         
         if (isUnlocked) {
             btn.setInteractive({ useHandCursor: true });
-            btn.on('pointerover', () => btn.setColor('#64ffda')); // Highlight
+            btn.on('pointerover', () => {
+                SoundManager.getInstance().playHover(); // Play Hover
+                btn.setColor('#64ffda'); // Highlight
+            });
             btn.on('pointerout', () => btn.setColor('#8899ac')); // Normal
-            btn.on('pointerdown', () => this.startGame(index));
+            btn.on('pointerdown', () => {
+                SoundManager.getInstance().playSelect(); // Play Select
+                this.startGame(index);
+            });
         }
 
         // Stars & Score (Subtle)
@@ -117,9 +160,13 @@ export class MenuScene extends Phaser.Scene {
     .setOrigin(0.5)
     .setInteractive({ useHandCursor: true });
     
-    courierBtn.on('pointerover', () => courierBtn.setColor('#64ffda'));
+    courierBtn.on('pointerover', () => {
+        SoundManager.getInstance().playHover(); // Play Hover
+        courierBtn.setColor('#64ffda');
+    });
     courierBtn.on('pointerout', () => courierBtn.setColor('#ffffff'));
     courierBtn.on('pointerdown', () => {
+        SoundManager.getInstance().playSelect(); // Play Select
         this.scene.start('CourierScene');
     });
   }

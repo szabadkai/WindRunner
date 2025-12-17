@@ -5,6 +5,8 @@ import { Course } from '../objects/Course';
 import { COURSES } from '../data/courses';
 import { GhostBoat } from '../objects/GhostBoat';
 import { ProgressionSystem, GhostData } from '../systems/ProgressionSystem';
+import { AudioSettings } from '../systems/AudioSettings';
+import { SoundManager } from '../systems/SoundManager';
 
 export class RaceScene extends Phaser.Scene {
   private boat!: Boat;
@@ -12,6 +14,8 @@ export class RaceScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private water!: Phaser.GameObjects.TileSprite;
   private course!: Course;
+  private bgm: Phaser.Sound.BaseSound | undefined;
+  private keepBgmOnShutdown: boolean = false;
   
   private isRaceActive: boolean = false;
   private isPreStart: boolean = false;
@@ -33,11 +37,32 @@ export class RaceScene extends Phaser.Scene {
 
   create(data: { courseIndex: number }) {
     this.cameras.main.setBackgroundColor('#87CEEB'); // Sky Blue
+    AudioSettings.apply(this);
     
     this.courseIndex = data.courseIndex || 0;
     const courseData = COURSES[this.courseIndex];
 
     this.scene.launch('UIScene', { waypoints: courseData.waypoints });
+
+    const existingBgm = this.sound.get('bgm_race') as Phaser.Sound.BaseSound | null;
+    this.bgm = existingBgm ?? this.sound.add('bgm_race', { loop: true, volume: 0.5 });
+
+    if (!this.bgm.isPlaying) {
+        if (this.sound.locked) {
+            this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.bgm?.play());
+            this.sound.unlock();
+        } else {
+            this.bgm.play();
+        }
+    }
+
+    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
+        if (this.keepBgmOnShutdown) {
+            this.keepBgmOnShutdown = false;
+            return; // Persist BGM across restart
+        }
+        this.bgm?.stop();
+    });
 
     // Background
     this.water = this.add.tileSprite(
@@ -93,8 +118,15 @@ export class RaceScene extends Phaser.Scene {
             this.scene.launch('PauseScene');
         });
 
+        // Mute toggle
+        this.input.keyboard.on('keydown-M', () => {
+            AudioSettings.toggle(this);
+            SoundManager.getInstance().playSelect();
+        });
+
         // Restart
         this.input.keyboard.on('keydown-R', () => {
+            this.keepBgmOnShutdown = true;
             this.scene.stop('UIScene');
             this.scene.start('RaceScene', { courseIndex: this.courseIndex });
         });
@@ -257,5 +289,10 @@ export class RaceScene extends Phaser.Scene {
       
       // Stop boat
       this.boat.speed = 0;
+  }
+
+  // Allow other scenes (UI) to persist race BGM across a restart.
+  public keepBgmForRestart() {
+      this.keepBgmOnShutdown = true;
   }
 }

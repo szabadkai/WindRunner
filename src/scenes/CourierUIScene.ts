@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Cargo } from '../objects/Cargo';
 import { Minimap } from '../objects/Minimap';
+import { SoundManager } from '../systems/SoundManager';
 
 export class CourierUIScene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
@@ -14,8 +15,19 @@ export class CourierUIScene extends Phaser.Scene {
   private toastText!: Phaser.GameObjects.Text;
   private windArrow!: Phaser.GameObjects.Graphics;
   private windSpeedText!: Phaser.GameObjects.Text;
-  private onboardContainer!: Phaser.GameObjects.Container;
+  private onboardContainer!: Phaser.GameObjects.Container | null; // Allow null
   private minimap!: Minimap;
+
+  // Onboarding
+  private currentOnboardingStep: number = 0;
+  private onboardingDescText!: Phaser.GameObjects.Text;
+  private onboardingSteps: string[] = [
+      "Welcome, Captain! Your goal is to deliver cargo between islands.",
+      "Use Arrow Keys to steer. Watch the WIND direction!",
+      "Sail to islands to pick up jobs. Press 'E' to dock.",
+      "Deliver within the time limit to earn cash!",
+      "Good luck!"
+  ];
 
   constructor() {
     super('CourierUIScene');
@@ -285,38 +297,60 @@ export class CourierUIScene extends Phaser.Scene {
       const title = this.add.text(w/2, h/2 - 150, 'COURIER TRAINING', { fontSize: '32px', color: '#ffff00', fontStyle: 'bold' }).setOrigin(0.5);
       this.onboardContainer.add(title);
       
-      const steps = [
-          "Welcome, Captain! Your goal is to deliver cargo between islands.",
-          "Use Arrow Keys to steer. Watch the WIND direction!",
-          "Sail to islands to pick up jobs. Press 'E' to dock.",
-          "Deliver within the time limit to earn cash!",
-          "Good luck!"
-      ];
-      
-      let stepIndex = 0;
-      const desc = this.add.text(w/2, h/2, steps[0], { 
+      this.currentOnboardingStep = 0;
+      this.onboardingDescText = this.add.text(w/2, h/2, '', { 
           fontSize: '20px', 
           color: '#ffffff', 
           wordWrap: { width: 500 },
           align: 'center'
       }).setOrigin(0.5);
-      this.onboardContainer.add(desc);
+      this.onboardContainer.add(this.onboardingDescText);
       
-      const btn = this.add.rectangle(w/2, h/2 + 150, 200, 50, 0x00aa00).setInteractive({ useHandCursor: true });
-      const btnText = this.add.text(w/2, h/2 + 150, 'NEXT', { fontSize: '24px' }).setOrigin(0.5);
-      this.onboardContainer.add(btn);
-      this.onboardContainer.add(btnText);
-      
-      btn.on('pointerdown', () => {
-          stepIndex++;
-          if (stepIndex < steps.length) {
-              desc.setText(steps[stepIndex]);
-              if (stepIndex === steps.length - 1) btnText.setText('SAIL!');
-          } else {
-              this.onboardContainer.destroy();
-              localStorage.setItem('onboarding_seen', 'true');
-              // Unpause game if paused? (Currently not paused, just blocked)
-          }
-      });
+      const nextBtn = this.add.text(w/2, h/2 + 150, 'NEXT >', {
+            fontSize: '24px',
+            color: '#000000',
+            backgroundColor: '#ffffff',
+            padding: { x: 20, y: 10 },
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        nextBtn.on('pointerover', () => {
+             SoundManager.getInstance().playHover();
+        });
+
+        nextBtn.on('pointerdown', () => {
+            SoundManager.getInstance().playSelect();
+            if (this.currentOnboardingStep < this.onboardingSteps.length - 1) {
+                this.currentOnboardingStep++;
+                this.showOnboardingStep(this.currentOnboardingStep);
+            } else {
+                this.endOnboarding();
+            }
+        });
+        
+        this.onboardContainer.add(nextBtn);
+
+        this.showOnboardingStep(this.currentOnboardingStep);
+  }
+
+  private showOnboardingStep(stepIndex: number) {
+    if (this.onboardingDescText && this.onboardingSteps && stepIndex < this.onboardingSteps.length) {
+        this.onboardingDescText.setText(this.onboardingSteps[stepIndex]);
+    }
+  }
+
+  private endOnboarding() {
+    if (this.onboardContainer) {
+        this.onboardContainer.destroy();
+        this.onboardContainer = null;
+    }
+    
+    // Save complete
+    localStorage.setItem('windrunner_courier_onboarding', 'true');
+    
+    // Show "Let's Sail!" toast
+    this.showToast("You're ready! Check the map for jobs.", 'success');
+    // Play success sound? Reuse Select for now.
+    SoundManager.getInstance().playSelect();
   }
 }

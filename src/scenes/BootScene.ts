@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { SoundManager } from '../systems/SoundManager';
+import { AudioSettings } from '../systems/AudioSettings';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -6,11 +8,26 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load assets here
+    this.load.audio('bgm_courier', 'islands.webm');
+    this.load.audio('bgm_race', 'race.webm');
   }
 
   create() {
     console.log('BootScene started');
+    AudioSettings.apply(this);
+
+    // Proactively unlock audio on first input for both Phaser and custom sounds.
+    const unlockAudio = () => {
+        if (this.sound.locked) {
+            this.sound.unlock();
+        }
+        SoundManager.getInstance().unlock();
+    };
+    this.input.once('pointerdown', unlockAudio);
+    this.input.keyboard?.once('keydown', unlockAudio);
+    if (!this.sound.locked) {
+        unlockAudio();
+    }
 
     // Create a simple procedural water texture
     const graphics = this.make.graphics({ x: 0, y: 0 });

@@ -6,6 +6,7 @@ import { DeliveryBoard } from '../objects/DeliveryBoard';
 import { IslandGenerator } from '../systems/IslandGenerator';
 import { COURIER_CONFIG } from '../config';
 import { CourierUIScene } from './CourierUIScene';
+import { AudioSettings } from '../systems/AudioSettings';
 
 export class CourierScene extends Phaser.Scene {
   private boat!: Boat;
@@ -21,6 +22,7 @@ export class CourierScene extends Phaser.Scene {
   
   // State for interaction
   private dockedIsland: Island | null = null;
+  private bgm: Phaser.Sound.BaseSound | undefined;
 
   constructor() {
     super('CourierScene');
@@ -32,7 +34,23 @@ export class CourierScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 12800, 7200);
     this.cameras.main.setBounds(0, 0, 12800, 7200);
     this.cameras.main.setBackgroundColor('#87CEEB');
+    AudioSettings.apply(this);
     
+    // Music
+    this.bgm = this.sound.add('bgm_courier', { loop: true, volume: 0.5 });
+    if (this.sound.locked) {
+        this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.bgm?.play());
+        this.sound.unlock();
+    } else {
+        this.bgm.play();
+    }
+    
+    this.events.on('shutdown', () => {
+        if (this.bgm) {
+            this.bgm.stop();
+        }
+    });
+
     this.water = this.add.tileSprite(0, 0, this.cameras.main.width, this.cameras.main.height, 'water')
       .setOrigin(0, 0).setScrollFactor(0);
 
