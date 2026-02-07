@@ -20,6 +20,7 @@ export class Boat extends Phaser.GameObjects.Container {
   private sailCamber: number = 0.25;
   private sailFill: number = 0;
   private sailFlailTime: number = 0;
+  private boomSide: 1 | -1 = 1;
   
   private swirls!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -162,6 +163,11 @@ export class Boat extends Phaser.GameObjects.Container {
     // Normalize to -180 to 180
     let windDiff = Phaser.Math.Angle.WrapDegrees(apparentWindAngle);
     const absWindDiff = Math.abs(windDiff);
+    // Stabilize boom side near dead downwind where signed angles can flip (+180/-180)
+    if (absWindDiff <= 170) {
+      // Wind from right/starboard => boom to left/port (positive boom angle in our drawing)
+      this.boomSide = windDiff >= 0 ? 1 : -1;
+    }
     
     // Boom Angle: proportional to sail trim, but limited by wind.
     // If wind is from right, boom goes left.
@@ -187,13 +193,12 @@ export class Boat extends Phaser.GameObjects.Container {
     // Boom pushes away from wind
     let currentBoomAngle = 0;
     if (Math.abs(windDiff) > 5) { // Deadzone
-        const side = windDiff > 0 ? -1 : 1; // Wind right -> Boom left
-        currentBoomAngle = side * maxBoomAngle;
+        currentBoomAngle = this.boomSide * maxBoomAngle;
     }
     const jitterTaper = Phaser.Math.Clamp(maxBoomAngle / 90, 0, 1); // tight trim reduces flutter
     const flailStrength = flailStrengthRaw * jitterTaper;
     const boomShake = flailStrength * flailOsc;
-    const baseSign = Math.sign(currentBoomAngle || (windDiff >= 0 ? -1 : 1));
+    const baseSign = Math.sign(currentBoomAngle || this.boomSide);
     currentBoomAngle += boomShake;
     if (currentBoomAngle * baseSign <= 0) {
       currentBoomAngle = baseSign * Math.max(2, Math.abs(currentBoomAngle) * 0.3);

@@ -26,11 +26,8 @@ export class ProgressionSystem {
     if (!course) return 0;
 
     // Defined in course: goldTime, silverTime, bronzeTime
-    // @ts-ignore - Assuming we added these props
     if (time <= course.goldTime) return 3;
-    // @ts-ignore
     if (time <= course.silverTime) return 2;
-    // @ts-ignore
     if (time <= course.bronzeTime) return 1;
     
     return 0;
@@ -47,7 +44,6 @@ export class ProgressionSystem {
   static isCourseUnlocked(courseIndex: number): boolean {
     const course = COURSES[courseIndex];
     if (!course) return false;
-    // @ts-ignore
     const required = course.unlockStars || 0;
     return this.getTotalStars() >= required;
   }

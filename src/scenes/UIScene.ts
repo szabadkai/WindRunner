@@ -1,4 +1,5 @@
 import { Minimap } from '../objects/Minimap';
+import type { CourseObstacle } from '../data/courses';
 import { SoundManager } from '../systems/SoundManager';
 
 export class UIScene extends Phaser.Scene {
@@ -27,7 +28,7 @@ export class UIScene extends Phaser.Scene {
     super('UIScene');
   }
 
-  create(data: { waypoints?: { x: number, y: number }[] }) {
+  create(data: { waypoints?: { x: number, y: number }[], obstacles?: CourseObstacle[] }) {
     // ... existing UI creation ...
     // Wind Indicator (Top Left)
     this.add.text(10, 10, 'WIND', { fontSize: '12px', color: '#aaaaaa' });
@@ -92,7 +93,13 @@ export class UIScene extends Phaser.Scene {
     
     // Minimap (Top Right)
     if (data && data.waypoints) {
-        this.minimap = new Minimap(this, this.cameras.main.width - 110, 110, data.waypoints);
+        this.minimap = new Minimap(
+            this,
+            this.cameras.main.width - 110,
+            110,
+            data.waypoints,
+            data.obstacles || []
+        );
     }
 
     // Listen for updates from RaceScene
@@ -524,4 +531,3 @@ export class UIScene extends Phaser.Scene {
       this.tutorialContainer.add(instructions);
   }
 }
-

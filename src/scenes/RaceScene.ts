@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Boat } from '../objects/Boat';
 import { Wind } from '../objects/Wind';
 import { Course } from '../objects/Course';
-import { COURSES } from '../data/courses';
+import { COURSES, CourseObstacle } from '../data/courses';
 import { GhostBoat } from '../objects/GhostBoat';
 import { ProgressionSystem, GhostData } from '../systems/ProgressionSystem';
 import { AudioSettings } from '../systems/AudioSettings';
@@ -14,6 +14,7 @@ export class RaceScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private water!: Phaser.GameObjects.TileSprite;
   private course!: Course;
+  private obstacles: (CourseObstacle & { graphic: Phaser.GameObjects.Graphics })[] = [];
   private bgm: Phaser.Sound.BaseSound | undefined;
   private keepBgmOnShutdown: boolean = false;
   
@@ -21,6 +22,8 @@ export class RaceScene extends Phaser.Scene {
   private isPreStart: boolean = false;
   private courseIndex: number = 0;
   private startTime: number = 0;
+  private lastObstacleHitTime: number = 0;
+  private obstacleCollisionBuffer: number = 26;
   
   // Ghost Vars
   private ghostBoat: GhostBoat | null = null;
@@ -41,8 +44,9 @@ export class RaceScene extends Phaser.Scene {
     
     this.courseIndex = data.courseIndex || 0;
     const courseData = COURSES[this.courseIndex];
+    this.lastObstacleHitTime = 0;
 
-    this.scene.launch('UIScene', { waypoints: courseData.waypoints });
+    this.scene.launch('UIScene', { waypoints: courseData.waypoints, obstacles: courseData.obstacles });
 
     const existingBgm = this.sound.get('bgm_race') as Phaser.Sound.BaseSound | null;
     this.bgm = existingBgm ?? this.sound.add('bgm_race', { loop: true, volume: 0.5 });
@@ -71,6 +75,8 @@ export class RaceScene extends Phaser.Scene {
         this.cameras.main.height, 
         'water'
     ).setOrigin(0, 0).setScrollFactor(0);
+
+    this.buildObstacles(courseData.obstacles);
 
     // Init Course
     this.course = new Course(this, {
@@ -185,6 +191,7 @@ export class RaceScene extends Phaser.Scene {
         
         
         this.boat.update(this.wind, this.cursors, touchInput);
+        this.handleObstacleCollisions(time);
         
         // Record Ghost (10Hz = every 100ms)
         if (!this.isPreStart && time > this.lastRecordTime + 100) {
@@ -248,12 +255,12 @@ export class RaceScene extends Phaser.Scene {
     this.water.tilePositionY = this.cameras.main.scrollY;
 
     // Emit HUD update
-  let elapsed = 0;
-  if (this.isRaceActive && !this.isPreStart) {
-      elapsed = time - this.startTime;
-  }
-  
-  this.events.emit('updateHUD', {
+    let elapsed = 0;
+    if (this.isRaceActive && !this.isPreStart) {
+        elapsed = time - this.startTime;
+    }
+    
+    this.events.emit('updateHUD', {
         windAngle: this.wind.angle,
         windSpeed: this.wind.speed,
         boatSpeed: this.boat.speed,
@@ -266,6 +273,47 @@ export class RaceScene extends Phaser.Scene {
         waypointIndex: this.course.getCurrentIndex(),
         totalWaypoints: this.course.getTotalWaypoints()
     });
+  }
+
+  private buildObstacles(obstacles: CourseObstacle[] | undefined) {
+      this.obstacles.forEach(ob => ob.graphic.destroy());
+      this.obstacles = [];
+      if (!obstacles || obstacles.length === 0) return;
+
+      this.obstacles = obstacles.map(obstacle => {
+          const graphic = this.add.graphics({ x: obstacle.x, y: obstacle.y });
+          graphic.fillStyle(0x2f2f2f, 0.95);
+          graphic.fillCircle(0, 0, obstacle.radius);
+          graphic.lineStyle(4, 0x0d0d0d, 0.8);
+          graphic.strokeCircle(0, 0, obstacle.radius + 6);
+          graphic.lineStyle(1, 0xffffff, 0.12);
+          graphic.strokeCircle(0, 0, obstacle.radius + 14);
+
+          return { ...obstacle, graphic };
+      });
+  }
+
+  private handleObstacleCollisions(time: number) {
+      if (this.obstacles.length === 0) return;
+
+      this.obstacles.forEach(obstacle => {
+          const distance = Phaser.Math.Distance.Between(this.boat.x, this.boat.y, obstacle.x, obstacle.y);
+          const minimum = obstacle.radius + this.obstacleCollisionBuffer;
+
+          if (distance < minimum) {
+              const separationAngle = Phaser.Math.Angle.Between(obstacle.x, obstacle.y, this.boat.x, this.boat.y);
+              const safeX = obstacle.x + Math.cos(separationAngle) * (minimum + 2);
+              const safeY = obstacle.y + Math.sin(separationAngle) * (minimum + 2);
+
+              this.boat.setPosition(safeX, safeY);
+              this.boat.speed = Math.max(0, this.boat.speed * 0.35);
+
+              if (time - this.lastObstacleHitTime > 250) {
+                  this.cameras.main.shake(120, 0.002);
+                  this.lastObstacleHitTime = time;
+              }
+          }
+      });
   }
 
   private finishRace(time: number) {
