@@ -14,6 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: szabadkai/prdemo@main
+      - uses: szabadkai/diffcast@main
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
