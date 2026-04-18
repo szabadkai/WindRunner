@@ -26,6 +26,12 @@ export const HEEL_CONFIG = {
   SENSITIVITY: 1.5, // wind-to-heel response multiplier
 };
 
+export const WIND_ALERT_CONFIG = {
+  SHIFT_THRESHOLD: 8, // degrees — minimum shift to trigger an alert
+  ALERT_DURATION: 3000, // ms — how long the alert banner stays visible
+  ALERT_FADE: 500, // ms — fade-out time
+};
+
 export const COURIER_CONFIG = {
   SESSION_DURATION: 360000, // 6 minutes in ms
   ISLAND_COUNT: 10,
