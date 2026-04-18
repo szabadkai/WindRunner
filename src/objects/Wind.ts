@@ -1,12 +1,11 @@
 import Phaser from 'phaser';
-import { PHYSICS_CONFIG } from '../config';
+import { PHYSICS_CONFIG, WIND_ALERT_CONFIG } from '../config';
 
 export class Wind {
   public angle: number; // Degrees, 0 = North
   public speed: number; // Knots
   private targetAngle: number;
   
-  // @ts-ignore - scene is used for future extensions
   private scene: Phaser.Scene;
   private lastShiftTime: number;
   private nextShiftDelay: number;
@@ -40,6 +39,8 @@ export class Wind {
   }
 
   private scheduleShift(time: number) {
+    const previousAngle = this.angle;
+
     this.lastShiftTime = time;
     this.nextShiftDelay = Phaser.Math.Between(
       PHYSICS_CONFIG.WIND_SHIFT_INTERVAL_MIN,
@@ -53,5 +54,14 @@ export class Wind {
     
     const dir = Math.random() < 0.5 ? 1 : -1;
     this.targetAngle = this.angle + (shift * dir);
+
+    if (shift >= WIND_ALERT_CONFIG.SHIFT_THRESHOLD) {
+      this.scene.events.emit('windShift', {
+        from: previousAngle,
+        to: this.targetAngle,
+        degrees: shift,
+        direction: dir > 0 ? 'veering' : 'backing',
+      });
+    }
   }
 }

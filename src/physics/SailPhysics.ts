@@ -8,6 +8,14 @@ export enum PointOfSail {
   RUNNING
 }
 
+const POINT_OF_SAIL_LABELS: Record<PointOfSail, string> = {
+  [PointOfSail.NO_GO]: 'In Irons',
+  [PointOfSail.CLOSE_HAULED]: 'Close Hauled',
+  [PointOfSail.BEAM_REACH]: 'Beam Reach',
+  [PointOfSail.BROAD_REACH]: 'Broad Reach',
+  [PointOfSail.RUNNING]: 'Running',
+};
+
 export class SailPhysics {
   /**
    * Calculates the boat's target speed based on its state and the wind.
@@ -82,6 +90,32 @@ export class SailPhysics {
     if (relativeAngle < 135) return PointOfSail.BEAM_REACH; // Actually BEAM is exactly 90, but let's say "Beam Reach Zone"
     if (relativeAngle < 160) return PointOfSail.BROAD_REACH;
     return PointOfSail.RUNNING;
+  }
+
+  static getPointOfSailLabel(boatHeading: number, windAngle: number): string {
+    return POINT_OF_SAIL_LABELS[SailPhysics.getPointOfSail(boatHeading, windAngle)];
+  }
+
+  /**
+   * Returns 0–1 representing how well the current sail trim matches
+   * the optimal trim for the current relative wind angle.
+   * 1 = perfectly trimmed, 0 = completely wrong.
+   */
+  static calculateSailEfficiency(
+    boatHeading: number,
+    windAngle: number,
+    sailTrim: number
+  ): number {
+    let relativeAngle = Math.abs(boatHeading - windAngle) % 360;
+    if (relativeAngle > 180) relativeAngle = 360 - relativeAngle;
+
+    if (relativeAngle < PHYSICS_CONFIG.NO_GO_ZONE_ANGLE) {
+      return 0;
+    }
+
+    const optimalTrim = ((relativeAngle - 45) / (180 - 45)) * 100;
+    const trimDev = Math.abs(sailTrim - optimalTrim);
+    return Math.max(0, 1 - trimDev / 50);
   }
 
   /**
