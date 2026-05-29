@@ -7,6 +7,7 @@ import { GhostBoat } from '../objects/GhostBoat';
 import { ProgressionSystem, GhostData } from '../systems/ProgressionSystem';
 import { AudioSettings } from '../systems/AudioSettings';
 import { SoundManager } from '../systems/SoundManager';
+import { SailPhysics } from '../physics/SailPhysics';
 
 export class RaceScene extends Phaser.Scene {
   private boat!: Boat;
@@ -113,6 +114,11 @@ export class RaceScene extends Phaser.Scene {
     // Start Sequence
     this.isRaceActive = false;
     this.startCountdown();
+
+    // Forward wind shift events to UIScene
+    this.events.on('windShift', (data: { from: number; to: number; degrees: number; direction: string }) => {
+      this.events.emit('windShiftAlert', data);
+    });
 
     // Camera
     this.cameras.main.startFollow(this.boat);
@@ -269,6 +275,12 @@ export class RaceScene extends Phaser.Scene {
         boatY: this.boat.y,
         sailTrim: this.boat.sailTrim,
         heelAngle: this.boat.heelAngle,
+        sailEfficiency: SailPhysics.calculateSailEfficiency(
+            this.boat.heading, this.wind.angle, this.boat.sailTrim
+        ),
+        pointOfSail: SailPhysics.getPointOfSailLabel(
+            this.boat.heading, this.wind.angle
+        ),
         time: elapsed,
         waypointIndex: this.course.getCurrentIndex(),
         totalWaypoints: this.course.getTotalWaypoints()

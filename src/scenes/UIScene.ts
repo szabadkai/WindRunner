@@ -1,6 +1,7 @@
 import { Minimap } from '../objects/Minimap';
 import type { CourseObstacle } from '../data/courses';
 import { SoundManager } from '../systems/SoundManager';
+import { WIND_ALERT_CONFIG } from '../config';
 
 export class UIScene extends Phaser.Scene {
   private windArrow!: Phaser.GameObjects.Graphics;
@@ -17,6 +18,15 @@ export class UIScene extends Phaser.Scene {
   private heelText!: Phaser.GameObjects.Text;
   
   private tutorialContainer!: Phaser.GameObjects.Container;
+
+  // Sail efficiency & point of sail
+  private efficiencyBar!: Phaser.GameObjects.Graphics;
+  private efficiencyText!: Phaser.GameObjects.Text;
+  private pointOfSailText!: Phaser.GameObjects.Text;
+
+  // Wind shift alert
+  private windAlertText!: Phaser.GameObjects.Text;
+  private windAlertTween: Phaser.Tweens.Tween | null = null;
 
   // Mobile touch control state - analog values from swipe gesture
   // steerInput: -1 (left) to 1 (right) - POSITION based
@@ -80,6 +90,28 @@ export class UIScene extends Phaser.Scene {
     this.heelText = this.add.text(105, this.cameras.main.height - 85, '0°', { fontSize: '14px', color: '#ffffff' }).setOrigin(0, 0.5);
     this.drawHeelGauge(0);
 
+    // Sail Efficiency Bar (Below wind indicator)
+    this.add.text(10, 85, 'EFFICIENCY', { fontSize: '12px', color: '#aaaaaa' });
+    this.add.rectangle(10, 105, 80, 8, 0x333333).setOrigin(0, 0.5);
+    this.efficiencyBar = this.add.graphics({ x: 10, y: 105 });
+    this.efficiencyText = this.add.text(95, 105, '0%', { fontSize: '14px', color: '#ffffff' }).setOrigin(0, 0.5);
+
+    // Point of Sail Label (Below efficiency)
+    this.pointOfSailText = this.add.text(10, 125, '', {
+        fontSize: '14px',
+        color: '#64ffda',
+        fontStyle: 'bold'
+    });
+
+    // Wind Shift Alert Banner (Top center, below timer)
+    this.windAlertText = this.add.text(this.cameras.main.width / 2, 55, '', {
+        fontSize: '18px',
+        color: '#ffaa00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+    }).setOrigin(0.5).setAlpha(0);
+
     // Countdown Text
     this.countdownText = this.add.text(
         this.cameras.main.width / 2, 
@@ -107,12 +139,14 @@ export class UIScene extends Phaser.Scene {
     raceScene.events.on('updateHUD', this.updateHUD, this);
     raceScene.events.on('raceFinished', this.onRaceFinished, this);
     raceScene.events.on('countdown', this.updateCountdown, this);
+    raceScene.events.on('windShiftAlert', this.showWindShiftAlert, this);
     
     // Clean up
     this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
         raceScene.events.off('updateHUD', this.updateHUD, this);
         raceScene.events.off('raceFinished', this.onRaceFinished, this);
         raceScene.events.off('countdown', this.updateCountdown, this);
+        raceScene.events.off('windShiftAlert', this.showWindShiftAlert, this);
     });
 
     // Mobile Touch Controls (only on touch devices)
@@ -304,6 +338,8 @@ export class UIScene extends Phaser.Scene {
       boatY: number;
       sailTrim: number;
       heelAngle: number;
+      sailEfficiency: number;
+      pointOfSail: string;
       time: number;
       waypointIndex: number;
       totalWaypoints: number;
@@ -324,6 +360,17 @@ export class UIScene extends Phaser.Scene {
     this.sailTrimBar.clear();
     this.sailTrimBar.fillStyle(0xffffff);
     this.sailTrimBar.fillRect(0, -5, data.sailTrim, 10); 
+
+    // Update Sail Efficiency
+    const eff = data.sailEfficiency;
+    this.efficiencyBar.clear();
+    const effColor = eff > 0.7 ? 0x44ff44 : eff > 0.4 ? 0xffaa00 : 0xff4444;
+    this.efficiencyBar.fillStyle(effColor);
+    this.efficiencyBar.fillRect(0, -4, eff * 80, 8);
+    this.efficiencyText.setText(`${Math.round(eff * 100)}%`);
+
+    // Update Point of Sail
+    this.pointOfSailText.setText(data.pointOfSail);
 
     // Update Timer
     const minutes = Math.floor(data.time / 60000);
@@ -406,6 +453,24 @@ export class UIScene extends Phaser.Scene {
     
     // Add Labels? (0° left, 45° right)
     // Maybe later
+  }
+
+  private showWindShiftAlert(data: { degrees: number; direction: string }) {
+    const arrow = data.direction === 'veering' ? '↻' : '↺';
+    this.windAlertText.setText(`Wind ${data.direction} ${arrow} ${data.degrees}°`);
+
+    if (this.windAlertTween) {
+      this.windAlertTween.destroy();
+    }
+
+    this.windAlertText.setAlpha(1);
+    this.windAlertTween = this.tweens.add({
+      targets: this.windAlertText,
+      alpha: 0,
+      delay: WIND_ALERT_CONFIG.ALERT_DURATION - WIND_ALERT_CONFIG.ALERT_FADE,
+      duration: WIND_ALERT_CONFIG.ALERT_FADE,
+      ease: 'Power2',
+    });
   }
 
   /**
